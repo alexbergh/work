@@ -1,0 +1,45 @@
+# Настройки для ГИС К1 и ИСПДн УЗ-2
+
+# Группа "Пользователи"
+snpolctl -p users -c users,min_passwd_size,8              # Устанавливаем минимальную длину пароля (8 символов)
+snpolctl -p users -c users,passwd_strength,1             # Включаем требование сложности паролей
+snpolctl -p users -c users,max_days,90                   # Ограничиваем срок действия пароля до 90 дней
+snpolctl -p users -c authentication,last_log,1           # Включаем уведомление о последнем входе пользователя
+snpolctl -p token_mgr -c authentication,deny,8           # Ограничиваем число неудачных попыток входа до 8
+snpolctl -p token_mgr -c authentication,unlock_time,30    # Устанавливаем блокировку учетной записи на 30 минут после превышения попыток
+snpolctl -p token_mgr -c authentication,lock_delay,15     # Включаем блокировку экрана после 15 минут неактивности
+
+# Группа "Подсистема контроля устройств"
+snpolctl -p devices -c devices_control,state,1            # Включаем контроль устройств
+snpolctl -p devices -c devices_control,verbose,2          # Устанавливаем полную детализацию аудита по устройствам
+
+# Группа "Подсистема дискреционного управления доступом"
+snpolctl -p control -c access_control,mode,1              # Включаем дискреционное управление доступом
+
+# Группа "Подсистема затирания информации"
+snpolctl -p control -c memory,mode,1                      # Включаем очистку оперативной памяти
+snpolctl -p service_mgr -c services,sntrashd,1            # Активируем сервис безопасного удаления данных
+
+# Группа "Подсистема замкнутой программной среды"
+snpolctl -p aec -c aec,state,1                            # Включаем замкнутую программную среду
+snpolctl -p aec -c aec,mode,1                             # Переводим замкнутую среду в жесткий режим
+snpolctl -p aec -c aec,log_perm_exec,1                    # Активируем журналирование разрешенного выполнения файлов
+snpolctl -p aec -c aec,log_deny_exec,1                    # Активируем журналирование запрещенного выполнения файлов
+snpolctl -p aec -c aec,log_perm_openlib,1                 # Логируем загрузку разрешенных библиотек
+snpolctl -p aec -c aec,log_deny_openlib,1                 # Логируем попытки загрузки запрещенных библиотек
+snpolctl -p aec -c aec,log_perm_openfile,1                # Логируем открытие разрешенных файлов
+snpolctl -p aec -c aec,log_deny_openfile,1                # Логируем попытки открытия запрещенных файлов
+
+# Группа "Подсистема контроля целостности"
+snpolctl -p aide -c aide,alg,2                            # Устанавливаем алгоритм контроля целостности SHA-512
+
+# Группа "Подсистема управления 'Соболь"
+snsablectl -c                      			  # Активируем подсистему "Соболь"
+snsablectl -t sable_control_sector           		  # Включаем контроль целостности секторов
+snsablectl -t sable_control_file            		  # Включаем контроль целостности файлов
+snsablectl -t sable_control_pci               		  # Включаем контроль целостности PCI-устройств
+snsablectl -t sable_control_smbios           		  # Включаем контроль целостности SMBIOS
+
+# Группа "Журналирование и аудит"
+snpolctl -p service_mgr -c services,snjournald,1          # Активируем системное журналирование
+
