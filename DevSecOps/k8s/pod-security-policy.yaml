@@ -1,0 +1,59 @@
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: restricted-psp
+  annotations:
+    seccomp.security.alpha.kubernetes.io/allowedProfileNames: 'runtime/default'
+    apparmor.security.beta.kubernetes.io/allowedProfileNames: 'runtime/default'
+    seccomp.security.alpha.kubernetes.io/defaultProfileName: 'runtime/default'
+    apparmor.security.beta.kubernetes.io/defaultProfileName: 'runtime/default'
+spec:
+  # Привилегии
+  privileged: false                    # 5.2.2 - Запрет привилегированных контейнеров
+  allowPrivilegeEscalation: false      # 5.2.4 - Запрет повышения привилегий
+  
+  # Capabilities
+  requiredDropCapabilities:            # 5.2.7/5.2.8 - Обязательный сброс capabilities
+    - ALL
+  allowedCapabilities:                 # Разрешенные capabilities (пустой список = никакие)
+    []
+  # Раскомментируйте для разрешения конкретных capabilities:
+  # allowedCapabilities:
+  #   - NET_BIND_SERVICE
+  #   - CHOWN
+  
+  # Volumes
+  volumes:
+    - 'configMap'
+    - 'emptyDir'
+    - 'projected'
+    - 'secret'
+    - 'downwardAPI'
+    - 'persistentVolumeClaim'
+  
+  # Host namespaces
+  hostNetwork: false                   # Запрет host network
+  hostIPC: false                       # Запрет host IPC
+  hostPID: false                       # Запрет host PID
+  
+  # Host ports
+  hostPorts:
+    - min: 0
+      max: 0                           # Запрет host ports
+  
+  # Users и Groups
+  runAsUser:
+    rule: 'MustRunAsNonRoot'           # 5.2.6 - Обязательно непривилегированный пользователь
+  
+  supplementalGroups:
+    rule: 'RunAsAny'
+  
+  fsGroup:
+    rule: 'RunAsAny'
+  
+  # Файловая система
+  readOnlyRootFilesystem: true         # Только чтение корневой ФС
+  
+  # SELinux
+  seLinux:
+    rule: 'RunAsAny'
