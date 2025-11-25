@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: my-app
+  template:
+    metadata:
+      labels:
+        app: my-app
+    spec:
+      # Security context на уровне pod
+      securityContext:
+        runAsNonRoot: true          # 5.2.6 - Запуск от непривилегированного пользователя
+        runAsUser: 10001            # 5.2.5 - Явное указание UID
+        fsGroup: 10001              # Группа для файловой системы
+        seccompProfile:
+          type: RuntimeDefault      # 5.7.2 - Seccomp профиль
+      
+      containers:
+      - name: my-app-container
+        image: my-app-image
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        
+        # Security context на уровне контейнера
+        securityContext:
+          allowPrivilegeEscalation: false  # 5.2.4 - Запрет повышения привилегий
+          privileged: false                # 5.2.2 - Не привилегированный контейнер
+          readOnlyRootFilesystem: true     # Только чтение корневой ФС
+          runAsNonRoot: true               # Дополнительная защита
+          capabilities:
+            drop:
+              - ALL                        # 5.2.7/5.2.8 - Сброс всех capabilities
+            # add:                         # Добавлять только необходимые
+            #   - NET_BIND_SERVICE         # Пример: если нужен доступ к портам < 1024
+        
+        # Ресурсные ограничения (рекомендация CIS 5.2.1)
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+        
+        # Проверки работоспособности
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
