@@ -1,0 +1,401 @@
+---
+# ValidatingWebhookConfiguration для динамического контроля capabilities
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: capabilities-validator
+webhooks:
+- name: validate-capabilities.security.k8s.io
+  admissionReviewVersions: ["v1", "v1beta1"]
+  clientConfig:
+    service:
+      name: capabilities-validator-service
+      namespace: kube-system
+      path: "/validate"
+    caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCi4uLgotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0t
+  rules:
+  - operations: ["CREATE", "UPDATE"]
+    apiGroups: ["apps", ""]
+    apiVersions: ["v1"]
+    resources: ["deployments", "pods", "replicasets", "daemonsets", "statefulsets"]
+  failurePolicy: Fail
+  sideEffects: None
+  timeoutSeconds: 10
+---
+# MutatingWebhookConfiguration для автоматического добавления безопасных настроек
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: capabilities-mutator
+webhooks:
+- name: mutate-capabilities.security.k8s.io
+  admissionReviewVersions: ["v1", "v1beta1"]
+  clientConfig:
+    service:
+      name: capabilities-validator-service
+      namespace: kube-system
+      path: "/mutate"
+    caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCi4uLgotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0t
+  rules:
+  - operations: ["CREATE"]
+    apiGroups: ["apps", ""]
+    apiVersions: ["v1"]
+    resources: ["deployments", "pods"]
+  failurePolicy: Ignore
+  sideEffects: None
+  reinvocationPolicy: Never
+---
+# Service для webhook
+apiVersion: v1
+kind: Service
+metadata:
+  name: capabilities-validator-service
+  namespace: kube-system
+spec:
+  selector:
+    app: capabilities-validator
+  ports:
+  - port: 443
+    targetPort: 8443
+---
+# Deployment webhook сервера
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: capabilities-validator
+  namespace: kube-system
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: capabilities-validator
+  template:
+    metadata:
+      labels:
+        app: capabilities-validator
+    spec:
+      serviceAccountName: capabilities-validator-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+      - name: webhook
+        image: capabilities-validator:latest  # Замените на ваш образ
+        ports:
+        - containerPort: 8443
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          capabilities:
+            drop:
+              - ALL
+        env:
+        - name: TLS_CERT_FILE
+          value: /etc/webhook/certs/tls.crt
+        - name: TLS_KEY_FILE
+          value: /etc/webhook/certs/tls.key
+        volumeMounts:
+        - name: webhook-certs
+          mountPath: /etc/webhook/certs
+          readOnly: true
+        - name: config
+          mountPath: /etc/webhook/config
+          readOnly: true
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+      volumes:
+      - name: webhook-certs
+        secret:
+          secretName: capabilities-validator-certs
+      - name: config
+        configMap:
+          name: allowed-capabilities-config
+---
+# ServiceAccount для webhook
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: capabilities-validator-sa
+  namespace: kube-system
+---
+# ClusterRole для webhook
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: capabilities-validator-role
+rules:
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets", "daemonsets", "statefulsets"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+---
+# ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: capabilities-validator-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: capabilities-validator-role
+subjects:
+- kind: ServiceAccount
+  name: capabilities-validator-sa
+  namespace: kube-system
+---
+# ConfigMap с правилами валидации
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: capabilities-validation-rules
+  namespace: kube-system
+data:
+  rules.yaml: |
+    # Правила валидации capabilities
+    
+    # Запрещенные capabilities (никогда не должны использоваться)
+    blocked:
+      - SYS_ADMIN
+      - SYS_MODULE
+      - SYS_PTRACE
+      - DAC_READ_SEARCH
+      - LINUX_IMMUTABLE
+      - NET_BROADCAST
+      - SYS_BOOT
+      - SYS_RAWIO
+    
+    # Capabilities, требующие явного одобрения
+    approval_required:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_TIME
+      - SYS_RESOURCE
+    
+    # Разрешенные capabilities для определенных namespaces
+    namespace_rules:
+      production:
+        max_allowed: 1
+        whitelist:
+          - NET_BIND_SERVICE
+      
+      development:
+        max_allowed: 3
+        whitelist:
+          - NET_BIND_SERVICE
+          - CHOWN
+          - FOWNER
+          - DAC_OVERRIDE
+      
+      default:
+        max_allowed: 0
+        whitelist: []
+    
+    # Обязательные настройки безопасности
+    required_security_context:
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL
+  
+  validation-logic.py: |
+    #!/usr/bin/env python3
+    """
+    Webhook сервер для валидации и мутации capabilities
+    """
+    import json
+    import base64
+    from flask import Flask, request, jsonify
+    import yaml
+    
+    app = Flask(__name__)
+    
+    # Загрузка правил валидации
+    with open('/etc/webhook/config/rules.yaml') as f:
+        rules = yaml.safe_load(f)
+    
+    def validate_capabilities(pod_spec, namespace):
+        """Валидация capabilities в pod spec"""
+        violations = []
+        
+        for container in pod_spec.get('containers', []):
+            sec_ctx = container.get('securityContext', {})
+            caps = sec_ctx.get('capabilities', {})
+            
+            # Проверка обязательного drop ALL
+            if 'ALL' not in caps.get('drop', []):
+                violations.append({
+                    'container': container['name'],
+                    'message': 'Must drop ALL capabilities'
+                })
+            
+            # Проверка добавленных capabilities
+            added = caps.get('add', [])
+            
+            # Проверка запрещенных capabilities
+            for cap in added:
+                if cap in rules['blocked']:
+                    violations.append({
+                        'container': container['name'],
+                        'capability': cap,
+                        'message': f'Capability {cap} is blocked'
+                    })
+            
+            # Проверка лимитов для namespace
+            ns_rules = rules['namespace_rules'].get(namespace, rules['namespace_rules']['default'])
+            whitelist = ns_rules['whitelist']
+            max_allowed = ns_rules['max_allowed']
+            
+            if len(added) > max_allowed:
+                violations.append({
+                    'container': container['name'],
+                    'message': f'Maximum {max_allowed} capabilities allowed in {namespace} namespace'
+                })
+            
+            for cap in added:
+                if cap not in whitelist:
+                    violations.append({
+                        'container': container['name'],
+                        'capability': cap,
+                        'message': f'Capability {cap} not whitelisted for {namespace} namespace'
+                    })
+        
+        return violations
+    
+    def mutate_pod_spec(pod_spec):
+        """Автоматическое добавление безопасных настроек"""
+        # Добавление pod-level security context
+        if 'securityContext' not in pod_spec:
+            pod_spec['securityContext'] = {}
+        
+        pod_sec = pod_spec['securityContext']
+        pod_sec.setdefault('runAsNonRoot', True)
+        pod_sec.setdefault('runAsUser', 10001)
+        pod_sec.setdefault('fsGroup', 10001)
+        
+        if 'seccompProfile' not in pod_sec:
+            pod_sec['seccompProfile'] = {'type': 'RuntimeDefault'}
+        
+        # Добавление container-level security context
+        for container in pod_spec.get('containers', []):
+            if 'securityContext' not in container:
+                container['securityContext'] = {}
+            
+            cont_sec = container['securityContext']
+            cont_sec.setdefault('allowPrivilegeEscalation', False)
+            cont_sec.setdefault('readOnlyRootFilesystem', True)
+            cont_sec.setdefault('runAsNonRoot', True)
+            
+            if 'capabilities' not in cont_sec:
+                cont_sec['capabilities'] = {}
+            
+            caps = cont_sec['capabilities']
+            if 'drop' not in caps:
+                caps['drop'] = ['ALL']
+            elif 'ALL' not in caps['drop']:
+                caps['drop'].append('ALL')
+        
+        return pod_spec
+    
+    @app.route('/validate', methods=['POST'])
+    def validate():
+        """Endpoint для валидации"""
+        admission_review = request.get_json()
+        
+        uid = admission_review['request']['uid']
+        namespace = admission_review['request']['namespace']
+        
+        # Извлечение pod spec
+        obj = admission_review['request']['object']
+        if obj['kind'] in ['Deployment', 'ReplicaSet', 'DaemonSet', 'StatefulSet']:
+            pod_spec = obj['spec']['template']['spec']
+        else:  # Pod
+            pod_spec = obj['spec']
+        
+        # Валидация
+        violations = validate_capabilities(pod_spec, namespace)
+        
+        # Формирование ответа
+        allowed = len(violations) == 0
+        response = {
+            'apiVersion': 'admission.k8s.io/v1',
+            'kind': 'AdmissionReview',
+            'response': {
+                'uid': uid,
+                'allowed': allowed
+            }
+        }
+        
+        if not allowed:
+            response['response']['status'] = {
+                'message': 'Capability validation failed',
+                'details': violations
+            }
+        
+        return jsonify(response)
+    
+    @app.route('/mutate', methods=['POST'])
+    def mutate():
+        """Endpoint для мутации"""
+        admission_review = request.get_json()
+        
+        uid = admission_review['request']['uid']
+        obj = admission_review['request']['object']
+        
+        # Извлечение pod spec
+        if obj['kind'] in ['Deployment', 'ReplicaSet', 'DaemonSet', 'StatefulSet']:
+            pod_spec = obj['spec']['template']['spec']
+        else:
+            pod_spec = obj['spec']
+        
+        # Мутация
+        mutated_spec = mutate_pod_spec(pod_spec.copy())
+        
+        # Создание JSON Patch
+        if obj['kind'] in ['Deployment', 'ReplicaSet', 'DaemonSet', 'StatefulSet']:
+            path = '/spec/template/spec'
+        else:
+            path = '/spec'
+        
+        patch = [
+            {
+                'op': 'replace',
+                'path': path,
+                'value': mutated_spec
+            }
+        ]
+        
+        # Формирование ответа
+        response = {
+            'apiVersion': 'admission.k8s.io/v1',
+            'kind': 'AdmissionReview',
+            'response': {
+                'uid': uid,
+                'allowed': True,
+                'patchType': 'JSONPatch',
+                'patch': base64.b64encode(json.dumps(patch).encode()).decode()
+            }
+        }
+        
+        return jsonify(response)
+    
+    @app.route('/health', methods=['GET'])
+    def health():
+        """Health check endpoint"""
+        return jsonify({'status': 'healthy'})
+    
+    if __name__ == '__main__':
+        app.run(host='0.0.0.0', port=8443, ssl_context=('cert.pem', 'key.pem'))
