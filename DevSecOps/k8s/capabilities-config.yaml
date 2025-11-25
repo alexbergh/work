@@ -1,0 +1,117 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: allowed-capabilities-config
+  namespace: kube-system
+data:
+  # Конфигурация разрешенных Linux Capabilities для различных типов приложений
+  
+  # Стандартные веб-приложения (минимальные привилегии)
+  web-app.yaml: |
+    capabilities:
+      drop:
+        - ALL
+      add: []
+  
+  # Приложения, требующие привязку к портам < 1024
+  web-app-privileged-ports.yaml: |
+    capabilities:
+      drop:
+        - ALL
+      add:
+        - NET_BIND_SERVICE
+  
+  # Приложения, работающие с сетью (например, прокси)
+  network-app.yaml: |
+    capabilities:
+      drop:
+        - ALL
+      add:
+        - NET_BIND_SERVICE
+        - NET_RAW
+        - NET_ADMIN
+  
+  # Приложения, требующие управление файлами
+  file-management-app.yaml: |
+    capabilities:
+      drop:
+        - ALL
+      add:
+        - CHOWN
+        - FOWNER
+        - DAC_OVERRIDE
+  
+  # Описание всех доступных Capabilities
+  capabilities-reference.txt: |
+    AUDIT_WRITE       - Запись в audit log
+    CHOWN             - Изменение владельца файлов
+    DAC_OVERRIDE      - Обход проверок прав доступа к файлам
+    FOWNER            - Обход проверок для операций с файлами
+    FSETID            - Не сбрасывать setuid/setgid биты
+    KILL              - Отправка сигналов любым процессам
+    MKNOD             - Создание специальных файлов
+    NET_BIND_SERVICE  - Привязка к портам < 1024
+    NET_RAW           - Использование RAW и PACKET сockets
+    NET_ADMIN         - Сетевое администрирование
+    SETFCAP           - Установка file capabilities
+    SETGID            - Изменение GID процесса
+    SETPCAP           - Изменение capabilities процесса
+    SETUID            - Изменение UID процесса
+    SYS_CHROOT        - Использование chroot
+    SYS_ADMIN         - Широкие административные права (ОПАСНО!)
+    SYS_TIME          - Изменение системного времени
+    
+  # Матрица рисков Capabilities
+  risk-matrix.yaml: |
+    high-risk:
+      - SYS_ADMIN      # Никогда не использовать
+      - SYS_PTRACE     # Отладка других процессов
+      - SYS_MODULE     # Загрузка kernel модулей
+      - DAC_READ_SEARCH # Чтение любых файлов
+    
+    medium-risk:
+      - NET_ADMIN      # Сетевая конфигурация
+      - NET_RAW        # Raw сокеты
+      - SYS_TIME       # Изменение времени
+    
+    low-risk:
+      - NET_BIND_SERVICE  # Привязка к привилегированным портам
+      - CHOWN             # Изменение владельца
+      - SETUID            # Изменение UID
+      - SETGID            # Изменение GID
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: runtime-capabilities-controller
+  namespace: kube-system
+data:
+  # Скрипт для динамического управления capabilities
+  controller.sh: |
+    #!/bin/bash
+    # Скрипт для валидации и применения capabilities
+    
+    validate_capabilities() {
+        local caps="$1"
+        local allowed_caps="NET_BIND_SERVICE CHOWN FOWNER DAC_OVERRIDE"
+        
+        for cap in $caps; do
+            if ! echo "$allowed_caps" | grep -q "$cap"; then
+                echo "ERROR: Capability $cap not allowed"
+                return 1
+            fi
+        done
+        return 0
+    }
+    
+    apply_capabilities() {
+        local namespace="$1"
+        local deployment="$2"
+        local capabilities="$3"
+        
+        if validate_capabilities "$capabilities"; then
+            kubectl patch deployment "$deployment" -n "$namespace" \
+              --type='json' \
+              -p="[{'op': 'replace', 'path': '/spec/template/spec/containers/0/securityContext/capabilities/add', 'value': [$capabilities]}]"
+        fi
+    }
