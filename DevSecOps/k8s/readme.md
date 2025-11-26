@@ -173,7 +173,7 @@ kubectl get networkpolicy -A -o wide
 
 ## Дополнительные ресурсы
 
-- [CIS Kubernetes Benchmark v1.10](CIS%20Kubernetes%20Benchmark%20v1.10%20PDF.pdf)
+- [CIS Kubernetes Benchmark v1.10](https://www.scribd.com/document/869161543/CIS-Kubernetes-Benchmark-v1-10-PDF)
 - [Pod Security Standards Documentation](https://kubernetes.io/docs/concepts/security/pod-security-standards/)
 - [OPA Gatekeeper](https://open-policy-agent.github.io/gatekeeper/)
 
