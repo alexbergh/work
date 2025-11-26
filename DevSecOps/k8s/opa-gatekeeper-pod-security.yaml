@@ -1,0 +1,56 @@
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: k8spodsecuritycis
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sPodSecurityCIS
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8spodsecuritycis
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          container.securityContext.privileged
+          msg := sprintf("Privileged containers не разрешены (CIS 5.2.1): %v", [container.name])
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not container.securityContext.runAsNonRoot
+          msg := sprintf("Container должен запускаться как non-root (CIS 5.2.6): %v", [container.name])
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not container.securityContext.allowPrivilegeEscalation == false
+          msg := sprintf("allowPrivilegeEscalation должен быть false (CIS 5.2.5): %v", [container.name])
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          has_dangerous_caps(container)
+          msg := sprintf("Опасные capabilities обнаружены (CIS 5.2.7): %v", [container.name])
+        }
+
+        has_dangerous_caps(container) {
+          dangerous := ["SYS_ADMIN", "NET_ADMIN", "SYS_MODULE", "SYS_RAWIO"]
+          cap := container.securityContext.capabilities.add[_]
+          cap == dangerous[_]
+        }
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sPodSecurityCIS
+metadata:
+  name: pod-security-cis
+spec:
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    namespaces:
+      - "default"
+      - "production"
