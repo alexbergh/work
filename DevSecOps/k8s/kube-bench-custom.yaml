@@ -1,0 +1,146 @@
+groups:
+- checks:
+  - audit: ps aux | grep kube-apiserver | grep /etc/kubernetes/manifests/*.yaml permissions
+    id: '1.1'
+    remediation: Защита манифестов подов (API CM Scheduler Etcd)
+    scored: true
+    tests:
+      test_items:
+      - flag: /etc/kubernetes/manifests/*.yaml permissions
+        set: true
+    text: /etc/kubernetes/manifests/*.yaml permissions
+  - audit: ps aux | grep kube-apiserver | grep /etc/kubernetes/manifests/*.yaml ownership
+    id: '1.2'
+    remediation: Контроль владельца манифестов
+    scored: true
+    tests:
+      test_items:
+      - flag: /etc/kubernetes/manifests/*.yaml ownership
+        set: true
+    text: /etc/kubernetes/manifests/*.yaml ownership
+  - audit: ps aux | grep kube-apiserver | grep /etc/cni/net.d permissions
+    id: '1.3'
+    remediation: Защита сетевых конфигов CNI
+    scored: true
+    tests:
+      test_items:
+      - flag: /etc/cni/net.d permissions
+        set: true
+    text: /etc/cni/net.d permissions
+  id: '1'
+  text: Файлы Control Plane
+- checks:
+  - audit: ps aux | grep kube-apiserver | grep --anonymous-auth=false
+    id: '2.1'
+    remediation: Запрет анонимных запросов
+    scored: true
+    tests:
+      test_items:
+      - flag: --anonymous-auth=false
+        set: true
+    text: --anonymous-auth=false
+  - audit: ps aux | grep kube-apiserver | grep --token-auth-file (отсутствует)
+    id: '2.2'
+    remediation: Запрет статических токенов
+    scored: true
+    tests:
+      test_items:
+      - flag: --token-auth-file (отсутствует)
+        set: true
+    text: --token-auth-file (отсутствует)
+  - audit: ps aux | grep kube-apiserver | grep --deny-service-external-ips
+    id: '2.3'
+    remediation: Запрет внешних IP для сервисов
+    scored: true
+    tests:
+      test_items:
+      - flag: --deny-service-external-ips
+        set: true
+    text: --deny-service-external-ips
+  id: '2'
+  text: API Server
+- checks:
+  - audit: ps aux | grep kube-apiserver | grep --terminated-pod-gc-threshold
+    id: '3.1'
+    remediation: Сборка мусора завершенных подов
+    scored: true
+    tests:
+      test_items:
+      - flag: --terminated-pod-gc-threshold
+        set: true
+    text: --terminated-pod-gc-threshold
+  - audit: ps aux | grep kube-apiserver | grep --profiling=false
+    id: '3.2'
+    remediation: Без профилирования
+    scored: true
+    tests:
+      test_items:
+      - flag: --profiling=false
+        set: true
+    text: --profiling=false
+  - audit: ps aux | grep kube-apiserver | grep --use-service-account-credentials=true
+    id: '3.3'
+    remediation: Отдельные SA для контроллеров
+    scored: true
+    tests:
+      test_items:
+      - flag: --use-service-account-credentials=true
+        set: true
+    text: --use-service-account-credentials=true
+  id: '3'
+  text: Controller Manager
+- checks:
+  - audit: ps aux | grep kube-apiserver | grep --profiling=false
+    id: '4.1'
+    remediation: Отключение профилирования
+    scored: true
+    tests:
+      test_items:
+      - flag: --profiling=false
+        set: true
+    text: --profiling=false
+  - audit: ps aux | grep kube-apiserver | grep --bind-address=127.0.0.1
+    id: '4.2'
+    remediation: Локальный биндинг
+    scored: true
+    tests:
+      test_items:
+      - flag: --bind-address=127.0.0.1
+        set: true
+    text: --bind-address=127.0.0.1
+  id: '4'
+  text: Scheduler
+- checks:
+  - audit: ps aux | grep kube-apiserver | grep --cert-file / --key-file
+    id: '5.1'
+    remediation: TLS для клиентов
+    scored: true
+    tests:
+      test_items:
+      - flag: --cert-file / --key-file
+        set: true
+    text: --cert-file / --key-file
+  - audit: ps aux | grep kube-apiserver | grep --client-cert-auth=true
+    id: '5.2'
+    remediation: Аутентификация клиентов по сертификатам
+    scored: true
+    tests:
+      test_items:
+      - flag: --client-cert-auth=true
+        set: true
+    text: --client-cert-auth=true
+  - audit: ps aux | grep kube-apiserver | grep --auto-tls=false
+    id: '5.3'
+    remediation: Запрет самоподписанных сертификатов
+    scored: true
+    tests:
+      test_items:
+      - flag: --auto-tls=false
+        set: true
+    text: --auto-tls=false
+  id: '5'
+  text: ETCD
+id: custom
+text: CIS Kubernetes Benchmark v1.10 - Custom ALT SP
+type: master
+version: cis-1.10
