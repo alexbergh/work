@@ -8,14 +8,14 @@
 
 | Файл | Назначение | Статус |
 |------|------------|--------|
-| `deployment-cis-compliant.yaml` | Шаблон CIS-совместимого Deployment |
-| `pod-security-policy.yaml` | PSP с ограничениями (deprecated в K8s 1.25+) |
-| `pod-security-admission.yaml` | Pod Security Admission для K8s 1.25+ |
-| `capabilities-config.yaml` | ConfigMap с профилями capabilities |
-| `kube-bench-custom.yaml` | Кастомные проверки для kube-bench |
-| `validating-webhook.yaml` | Admission webhook + Python логика |
-| `opa-gatekeeper-pod-security.yaml` | OPA политики для pod security |
-| `opa-gatekeeper-networkpolicy.yaml` | OPA политики для NetworkPolicy |
+| `deployment-cis-compliant.yaml` | Шаблон CIS-совместимого Deployment | + |
+| `pod-security-policy.yaml` | PSP с ограничениями (deprecated в K8s 1.25+) | + |
+| `pod-security-admission.yaml` | Pod Security Admission для K8s 1.25+ | + |
+| `capabilities-config.yaml` | ConfigMap с профилями capabilities | + |
+| `kube-bench-custom.yaml` | Кастомные проверки для kube-bench | + |
+| `validating-webhook.yaml` | Admission webhook + Python логика | + |
+| `opa-gatekeeper-pod-security.yaml` | OPA политики для pod security | + |
+| `opa-gatekeeper-networkpolicy.yaml` | OPA политики для NetworkPolicy | + |
 
 ## Покрытие CIS Kubernetes v1.10
 
@@ -153,7 +153,7 @@ kube-bench run --config kube-bench-custom.yaml --json > compliance-report.json
 - Нужно собрать образ из Python-кода в ConfigMap
 - `caBundle` содержит placeholder - сгенерируйте реальные сертификаты
 
-### 📋 Migration Path
+### Migration Path
 1. **Legacy (≤1.24)**: Используйте `pod-security-policy.yaml`
 2. **Modern (≥1.25)**: Используйте `pod-security-admission.yaml`
 3. **Advanced**: OPA Gatekeeper + Admission Webhooks
