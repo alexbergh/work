@@ -1,0 +1,35 @@
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: k8srequirenetworkpolicy
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRequireNetworkPolicy
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srequirenetworkpolicy
+
+        violation[{"msg": msg}] {
+          input.review.kind.kind == "Namespace"
+          namespace := input.review.object.metadata.name
+          not has_network_policy(namespace)
+          msg := sprintf("Namespace должен иметь NetworkPolicy (CIS 5.3.2): %v", [namespace])
+        }
+
+        has_network_policy(namespace) {
+          netpol := data.inventory.cluster["networking.k8s.io/v1"]["NetworkPolicy"][_]
+          netpol.metadata.namespace == namespace
+        }
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequireNetworkPolicy
+metadata:
+  name: require-networkpolicy
+spec:
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Namespace"]
