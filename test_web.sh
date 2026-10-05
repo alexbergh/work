@@ -38,7 +38,7 @@ else
 fi
 echo "-------------------------------"
 
-echo "Наяато сканирования портов"
+echo "Начато сканирование портов"
 nmap -v -Pn -sS --scanflags SYNACK -T4 --reason $target > "${target}_${datestamp}_nmap_scan.txt"
 echo "Сканирование портов завершено. Результаты сохранены в файле ${target}_${datestamp}_nmap_scan.txt"
 echo "-------------------------------"

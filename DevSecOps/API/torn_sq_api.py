@@ -1,50 +1,70 @@
+"""
+Tornado API для интеграции с SonarQube.
+
+Запуск:
+    export SONARQUBE_URL="http://sonarqube.example.com"
+    export SONARQUBE_API_TOKEN="your_token"
+    python torn_sq_api.py
+"""
+
+import json
+import logging
+from concurrent.futures import ThreadPoolExecutor
+
 import tornado.ioloop
 import tornado.web
-import requests
-import json
 
-SONARQUBE_URL = "<http://sonarqube.example.com>"
-SONARQUBE_API_TOKEN = "api_token"
+from sonarqube_client import SonarQubeClient
 
-def create_sonarqube_project(project_key, project_name):
-    url = f"{SONARQUBE_URL}/api/projects/create"
-    headers = {"Authorization": f"Bearer {SONARQUBE_API_TOKEN}"}
-    data = {"key": project_key, "name": project_name}
-    response = requests.post(url, headers=headers, data=data)
-    if response.status_code == 200:
-        print(f"Project '{project_name}' created successfully in SonarQube.")
-    else:
-        print(f"Failed to create project in SonarQube. Status code: {response.status_code}")
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-def analyze_code(project_key, code_path):
-    url = f"{SONARQUBE_URL}/api/qualitygates/evaluate"
-    headers = {"Authorization": f"Bearer {SONARQUBE_API_TOKEN}"}
-    data = {
-        "projectKey": project_key,
-        "analysisMode": "preview",
-        "branch": "main",
-        "sonar.analysis.issuesMode": "issues",
-        "sonar.sources": code_path,
-    }
-    response = requests.post(url, headers=headers, data=data)
-    if response.status_code == 200:
-        print("Code analysis completed successfully.")
-    else:
-        print(f"Failed to analyze code. Status code: {response.status_code}")
+# Thread pool для выполнения синхронных операций
+executor = ThreadPoolExecutor(max_workers=4)
+
 
 class CodeAnalysisHandler(tornado.web.RequestHandler):
+    """Handler для анализа кода через SonarQube."""
+
     async def post(self):
-        project_key = self.get_body_argument('project_key')
-        code_path = self.get_body_argument('code_path')
-        
-        create_sonarqube_project(project_key, project_key)
-        analyze_code(project_key, code_path)
-        
-        self.finish(json.dumps({"message": "Code analysis initiated."}))
+        """Запускает анализ кода."""
+        try:
+            project_key = self.get_body_argument("project_key")
+            code_path = self.get_body_argument("code_path")
+        except tornado.web.MissingArgumentError as e:
+            self.set_status(400)
+            self.finish(json.dumps({"error": f"Missing argument: {e.arg_name}"}))
+            return
+
+        try:
+            # Выполняем синхронные операции в thread pool
+            result = await tornado.ioloop.IOLoop.current().run_in_executor(
+                executor, self._run_analysis, project_key, code_path
+            )
+            self.finish(json.dumps(result))
+        except Exception as e:
+            logger.exception("Analysis failed")
+            self.set_status(500)
+            self.finish(json.dumps({"error": str(e)}))
+
+    def _run_analysis(self, project_key: str, code_path: str) -> dict:
+        """Выполняет анализ в синхронном контексте."""
+        with SonarQubeClient() as client:
+            client.create_project(project_key, project_key)
+            client.analyze_code(project_key, code_path)
+        return {"message": "Code analysis initiated.", "project_key": project_key}
+
+
+class HealthHandler(tornado.web.RequestHandler):
+    """Health check endpoint."""
+
+    def get(self):
+        self.finish(json.dumps({"status": "ok"}))
 
 def make_app():
     return tornado.web.Application([
         (r"/analyze-code", CodeAnalysisHandler),
+        (r"/health", HealthHandler),
     ])
 
 if __name__ == "__main__":

@@ -1,0 +1,11 @@
+# DevSecOps Python Dependencies
+
+# HTTP клиент
+requests>=2.31.0
+
+# Tornado веб-фреймворк
+tornado>=6.4
+
+# Типизация (опционально, для разработки)
+# mypy>=1.8.0
+# types-requests>=2.31.0

@@ -1,0 +1,977 @@
+# Security Configuration Assessment
+# CIS Benchmark for Ubuntu Linux 22.04 LTS v1.0.0
+#
+# This program is free software; you can redistribute it
+# and/or modify it under the terms of the GNU General Public
+# License (version 2) as published by the FSF - Free Software
+# Foundation
+#
+# ID Range: 200000-299999 (custom SCA, no conflicts with default policies)
+#
+# Deployment:
+#   Manager: /var/ossec/etc/shared/default/sca_cis_linux_hardening.yml
+#   Agent config:
+#     <sca>
+#       <policies>
+#         <policy>etc/shared/sca_cis_linux_hardening.yml</policy>
+#       </policies>
+#     </sca>
+#
+# Prerequisites:
+#   - Enable remote commands: sca.remote_commands=1 in local_internal_options.conf
+#   - Restart agent after enabling
+
+policy:
+  id: "cis_linux_hardening"
+  file: "sca_cis_linux_hardening.yml"
+  name: "CIS Benchmark Linux Hardening"
+  description: "Проверка конфигурации на соответствие CIS Benchmark for Ubuntu Linux 22.04 LTS"
+  references:
+    - "https://www.cisecurity.org/benchmark/ubuntu_linux"
+    - "https://www.cisecurity.org/benchmark/distribution_independent_linux"
+
+requirements:
+  title: "Требования для запуска сканирования"
+  description: "Проверяем наличие Linux-системы"
+  condition: all
+  rules:
+    - 'f:/etc/passwd'
+    - 'f:/etc/os-release'
+
+variables:
+  $sshd_config: "/etc/ssh/sshd_config"
+  $sshd_config_d: "/etc/ssh/sshd_config.d"
+  $passwd_file: "/etc/passwd"
+  $shadow_file: "/etc/shadow"
+  $group_file: "/etc/group"
+  $gshadow_file: "/etc/gshadow"
+  $sudoers_file: "/etc/sudoers"
+  $login_defs: "/etc/login.defs"
+  $grub_cfg: "/boot/grub/grub.cfg"
+
+checks:
+
+  # ============================================================================
+  # SECTION 1: INITIAL SETUP - FILESYSTEM (CIS 1.1.x)
+  # ============================================================================
+
+  - id: 200001
+    title: "1.1.1.1 Ensure cramfs kernel module is not available"
+    description: "cramfs — устаревшая файловая система, должна быть отключена."
+    rationale: "Отключение неиспользуемых ФС снижает поверхность атаки."
+    remediation: "echo 'install cramfs /bin/false' >> /etc/modprobe.d/cramfs.conf"
+    compliance:
+      - cis: ["1.1.1.1"]
+      - nist_800_53: ["CM-7"]
+    condition: any
+    rules:
+      - 'c:modprobe -n -v cramfs 2>&1 -> r:install /bin/false|install /bin/true|not found'
+      - 'not c:lsmod -> r:^cramfs'
+
+  - id: 200002
+    title: "1.1.1.2 Ensure squashfs kernel module is not available"
+    description: "squashfs — сжатая read-only файловая система."
+    rationale: "Может использоваться для монтирования вредоносных образов."
+    remediation: "echo 'install squashfs /bin/false' >> /etc/modprobe.d/squashfs.conf"
+    compliance:
+      - cis: ["1.1.1.6"]
+      - nist_800_53: ["CM-7"]
+    condition: any
+    rules:
+      - 'c:modprobe -n -v squashfs 2>&1 -> r:install /bin/false|install /bin/true|not found'
+      - 'not c:lsmod -> r:^squashfs'
+
+  - id: 200003
+    title: "1.1.1.3 Ensure udf kernel module is not available"
+    description: "udf — Universal Disk Format для оптических дисков."
+    rationale: "Отключение неиспользуемых ФС снижает поверхность атаки."
+    remediation: "echo 'install udf /bin/false' >> /etc/modprobe.d/udf.conf"
+    compliance:
+      - cis: ["1.1.1.7"]
+      - nist_800_53: ["CM-7"]
+    condition: any
+    rules:
+      - 'c:modprobe -n -v udf 2>&1 -> r:install /bin/false|install /bin/true|not found'
+      - 'not c:lsmod -> r:^udf'
+
+  - id: 200004
+    title: "1.1.1.4 Ensure usb-storage kernel module is not available"
+    description: "usb-storage — модуль для USB накопителей."
+    rationale: "Отключение USB предотвращает утечку данных и заражение."
+    remediation: "echo 'install usb-storage /bin/false' >> /etc/modprobe.d/usb-storage.conf"
+    compliance:
+      - cis: ["1.1.1.8"]
+      - nist_800_53: ["CM-7", "MP-7"]
+    condition: any
+    rules:
+      - 'c:modprobe -n -v usb-storage 2>&1 -> r:install /bin/false|install /bin/true|not found'
+      - 'not c:lsmod -> r:^usb.storage'
+
+  # ============================================================================
+  # SECTION 1.4: SECURE BOOT SETTINGS (CIS 1.4.x)
+  # ============================================================================
+
+  - id: 200010
+    title: "1.4.1 Ensure bootloader password is set"
+    description: "Проверяем, что GRUB защищён паролем."
+    rationale: "Пароль GRUB предотвращает изменение параметров загрузки."
+    remediation: "Выполните grub-mkpasswd-pbkdf2 и добавьте в /etc/grub.d/40_custom"
+    compliance:
+      - cis: ["1.4.1"]
+      - nist_800_53: ["AC-3"]
+    condition: any
+    rules:
+      - 'f:$grub_cfg -> r:set superusers|password_pbkdf2'
+
+  - id: 200011
+    title: "1.4.2 Ensure permissions on bootloader config are configured"
+    description: "Проверяем права на /boot/grub/grub.cfg"
+    rationale: "Конфигурация загрузчика должна быть защищена."
+    remediation: "chmod 400 /boot/grub/grub.cfg; chown root:root /boot/grub/grub.cfg"
+    compliance:
+      - cis: ["1.4.2"]
+      - nist_800_53: ["AC-3", "AC-6"]
+    condition: all
+    rules:
+      - 'c:stat -c "%a %U %G" /boot/grub/grub.cfg -> r:^400 root root|^600 root root'
+
+  # ============================================================================
+  # SECTION 2: SERVICES (CIS 2.x)
+  # ============================================================================
+
+  - id: 200020
+    title: "2.1.1 Ensure time synchronization is in use"
+    description: "Проверяем, что NTP или chrony установлен."
+    rationale: "Синхронизация времени критична для логирования."
+    remediation: "apt install chrony && systemctl enable chrony"
+    compliance:
+      - cis: ["2.1.1"]
+      - nist_800_53: ["AU-8"]
+    condition: any
+    rules:
+      - 'p:chronyd'
+      - 'p:ntpd'
+      - 'c:timedatectl status -> r:NTP service: active|System clock synchronized: yes'
+
+  - id: 200021
+    title: "2.2.1 Ensure X Window System is not installed"
+    description: "Проверяем, что X11 не установлен на сервере."
+    rationale: "X11 увеличивает поверхность атаки."
+    remediation: "apt purge xserver-xorg*"
+    compliance:
+      - cis: ["2.2.1"]
+      - nist_800_53: ["CM-7"]
+    condition: none
+    rules:
+      - 'c:dpkg -l xserver-xorg* 2>/dev/null -> r:^ii'
+
+  - id: 200022
+    title: "2.2.2 Ensure Avahi Server is not installed"
+    description: "Проверяем, что Avahi daemon не установлен."
+    rationale: "Avahi не нужен на серверах."
+    remediation: "apt purge avahi-daemon"
+    compliance:
+      - cis: ["2.2.2"]
+      - nist_800_53: ["CM-7"]
+    condition: all
+    rules:
+      - 'not p:avahi-daemon'
+
+  - id: 200023
+    title: "2.2.3 Ensure CUPS is not installed"
+    description: "Проверяем, что CUPS не установлен."
+    rationale: "CUPS не нужен на серверах без принтеров."
+    remediation: "apt purge cups"
+    compliance:
+      - cis: ["2.2.3"]
+      - nist_800_53: ["CM-7"]
+    condition: all
+    rules:
+      - 'not p:cupsd'
+
+  - id: 200024
+    title: "2.2.15 Ensure mail transfer agent is local-only"
+    description: "Проверяем, что MTA слушает только localhost."
+    rationale: "MTA не должен принимать внешние соединения."
+    remediation: "Настройте postfix: inet_interfaces = loopback-only"
+    compliance:
+      - cis: ["2.2.15"]
+      - nist_800_53: ["CM-7"]
+    condition: any
+    rules:
+      - 'not c:ss -lntu -> r:0.0.0.0:25|:::25'
+      - 'c:ss -lntu -> r:127.0.0.1:25'
+
+  - id: 200025
+    title: "2.2.17 Ensure telnet-server is not installed"
+    description: "Проверяем, что telnet сервер не установлен."
+    rationale: "Telnet передаёт данные в открытом виде."
+    remediation: "apt purge telnetd"
+    compliance:
+      - cis: ["2.2.17"]
+      - nist_800_53: ["CM-7", "IA-5"]
+    condition: all
+    rules:
+      - 'not p:telnetd'
+      - 'not p:in.telnetd'
+
+  - id: 200026
+    title: "2.2.18 Ensure rsh server is not installed"
+    description: "Проверяем, что rsh сервер не установлен."
+    rationale: "RSH небезопасен и устарел."
+    remediation: "apt purge rsh-server"
+    compliance:
+      - cis: ["2.2.18"]
+      - nist_800_53: ["CM-7", "IA-5"]
+    condition: all
+    rules:
+      - 'not p:rshd'
+      - 'not p:in.rshd'
+
+  # ============================================================================
+  # SECTION 3: NETWORK CONFIGURATION (CIS 3.x)
+  # ============================================================================
+
+  - id: 200030
+    title: "3.1.1 Ensure IP forwarding is disabled"
+    description: "Проверяем, что IP forwarding отключен."
+    rationale: "IP forwarding должен быть отключен на хостах."
+    remediation: "sysctl -w net.ipv4.ip_forward=0"
+    compliance:
+      - cis: ["3.1.1"]
+      - nist_800_53: ["CM-7", "SC-7"]
+    condition: all
+    rules:
+      - 'c:sysctl net.ipv4.ip_forward -> r:= 0$'
+
+  - id: 200031
+    title: "3.1.2 Ensure packet redirect sending is disabled"
+    description: "Проверяем, что отправка ICMP redirects отключена."
+    rationale: "ICMP redirects могут использоваться для MITM."
+    remediation: "sysctl -w net.ipv4.conf.all.send_redirects=0"
+    compliance:
+      - cis: ["3.1.2"]
+      - nist_800_53: ["CM-7", "SC-7"]
+    condition: all
+    rules:
+      - 'c:sysctl net.ipv4.conf.all.send_redirects -> r:= 0$'
+      - 'c:sysctl net.ipv4.conf.default.send_redirects -> r:= 0$'
+
+  - id: 200032
+    title: "3.2.1 Ensure source routed packets are not accepted"
+    description: "Проверяем, что source routing отключен."
+    rationale: "Source routing может обходить файрвол."
+    remediation: "sysctl -w net.ipv4.conf.all.accept_source_route=0"
+    compliance:
+      - cis: ["3.2.1"]
+      - nist_800_53: ["CM-7", "SC-7"]
+    condition: all
+    rules:
+      - 'c:sysctl net.ipv4.conf.all.accept_source_route -> r:= 0$'
+      - 'c:sysctl net.ipv4.conf.default.accept_source_route -> r:= 0$'
+
+  - id: 200033
+    title: "3.2.2 Ensure ICMP redirects are not accepted"
+    description: "Проверяем, что ICMP redirects не принимаются."
+    rationale: "ICMP redirects могут использоваться для MITM."
+    remediation: "sysctl -w net.ipv4.conf.all.accept_redirects=0"
+    compliance:
+      - cis: ["3.2.2"]
+      - nist_800_53: ["CM-7", "SC-7"]
+    condition: all
+    rules:
+      - 'c:sysctl net.ipv4.conf.all.accept_redirects -> r:= 0$'
+      - 'c:sysctl net.ipv4.conf.default.accept_redirects -> r:= 0$'
+
+  - id: 200034
+    title: "3.2.3 Ensure secure ICMP redirects are not accepted"
+    description: "Проверяем, что secure ICMP redirects не принимаются."
+    rationale: "Даже secure redirects могут быть опасны."
+    remediation: "sysctl -w net.ipv4.conf.all.secure_redirects=0"
+    compliance:
+      - cis: ["3.2.3"]
+      - nist_800_53: ["CM-7", "SC-7"]
+    condition: all
+    rules:
+      - 'c:sysctl net.ipv4.conf.all.secure_redirects -> r:= 0$'
+
+  - id: 200035
+    title: "3.2.4 Ensure suspicious packets are logged"
+    description: "Проверяем, что martian пакеты логируются."
+    rationale: "Логирование помогает обнаружить атаки."
+    remediation: "sysctl -w net.ipv4.conf.all.log_martians=1"
+    compliance:
+      - cis: ["3.2.4"]
+      - nist_800_53: ["AU-12", "SC-7"]
+    condition: all
+    rules:
+      - 'c:sysctl net.ipv4.conf.all.log_martians -> r:= 1$'
+
+  - id: 200036
+    title: "3.2.5 Ensure broadcast ICMP requests are ignored"
+    description: "Проверяем, что broadcast ICMP игнорируются."
+    rationale: "Защита от Smurf атак."
+    remediation: "sysctl -w net.ipv4.icmp_echo_ignore_broadcasts=1"
+    compliance:
+      - cis: ["3.2.5"]
+      - nist_800_53: ["CM-7", "SC-7"]
+    condition: all
+    rules:
+      - 'c:sysctl net.ipv4.icmp_echo_ignore_broadcasts -> r:= 1$'
+
+  - id: 200037
+    title: "3.2.6 Ensure bogus ICMP responses are ignored"
+    description: "Проверяем, что bogus ICMP ответы игнорируются."
+    rationale: "Защита от некорректных ICMP пакетов."
+    remediation: "sysctl -w net.ipv4.icmp_ignore_bogus_error_responses=1"
+    compliance:
+      - cis: ["3.2.6"]
+      - nist_800_53: ["CM-7", "SC-7"]
+    condition: all
+    rules:
+      - 'c:sysctl net.ipv4.icmp_ignore_bogus_error_responses -> r:= 1$'
+
+  - id: 200038
+    title: "3.2.7 Ensure Reverse Path Filtering is enabled"
+    description: "Проверяем, что RPF включен."
+    rationale: "RPF защищает от IP spoofing."
+    remediation: "sysctl -w net.ipv4.conf.all.rp_filter=1"
+    compliance:
+      - cis: ["3.2.7"]
+      - nist_800_53: ["CM-7", "SC-7"]
+    condition: all
+    rules:
+      - 'c:sysctl net.ipv4.conf.all.rp_filter -> r:= 1$'
+
+  - id: 200039
+    title: "3.2.8 Ensure TCP SYN Cookies is enabled"
+    description: "Проверяем, что SYN cookies включены."
+    rationale: "Защита от SYN flood DoS атак."
+    remediation: "sysctl -w net.ipv4.tcp_syncookies=1"
+    compliance:
+      - cis: ["3.2.8"]
+      - nist_800_53: ["CM-7", "SC-5"]
+    condition: all
+    rules:
+      - 'c:sysctl net.ipv4.tcp_syncookies -> r:= 1$'
+
+  # ============================================================================
+  # SECTION 4: LOGGING AND AUDITING (CIS 4.x)
+  # ============================================================================
+
+  - id: 200040
+    title: "4.1.1.1 Ensure auditd is installed"
+    description: "Проверяем, что auditd установлен."
+    rationale: "Auditd необходим для аудита системных событий."
+    remediation: "apt install auditd audispd-plugins"
+    compliance:
+      - cis: ["4.1.1.1"]
+      - nist_800_53: ["AU-2", "AU-12"]
+    condition: all
+    rules:
+      - 'c:dpkg -l auditd -> r:^ii'
+
+  - id: 200041
+    title: "4.1.1.2 Ensure auditd service is enabled"
+    description: "Проверяем, что auditd запущен."
+    rationale: "Auditd должен работать постоянно."
+    remediation: "systemctl --now enable auditd"
+    compliance:
+      - cis: ["4.1.1.2"]
+      - nist_800_53: ["AU-2", "AU-12"]
+    condition: all
+    rules:
+      - 'c:systemctl is-enabled auditd -> r:^enabled'
+      - 'p:auditd'
+
+  - id: 200042
+    title: "4.1.1.3 Ensure auditing for processes prior to auditd is enabled"
+    description: "Проверяем audit=1 в параметрах загрузки."
+    rationale: "Аудит должен начинаться с загрузки."
+    remediation: "Добавьте audit=1 в GRUB_CMDLINE_LINUX"
+    compliance:
+      - cis: ["4.1.1.3"]
+      - nist_800_53: ["AU-2", "AU-12"]
+    condition: all
+    rules:
+      - 'f:/etc/default/grub -> r:GRUB_CMDLINE_LINUX=.*audit=1'
+
+  - id: 200043
+    title: "4.1.3.1 Ensure changes to sudoers are collected"
+    description: "Проверяем аудит изменений sudoers."
+    rationale: "Изменения sudoers критичны для безопасности."
+    remediation: "Добавьте правило: -w /etc/sudoers -p wa -k scope"
+    compliance:
+      - cis: ["4.1.3.1"]
+      - nist_800_53: ["AU-2", "AU-12"]
+    condition: any
+    rules:
+      - 'c:auditctl -l -> r:-w /etc/sudoers'
+      - 'f:/etc/audit/rules.d -> r:-w /etc/sudoers'
+
+  - id: 200044
+    title: "4.2.1.1 Ensure rsyslog is installed"
+    description: "Проверяем, что rsyslog установлен."
+    rationale: "Rsyslog необходим для логирования."
+    remediation: "apt install rsyslog"
+    compliance:
+      - cis: ["4.2.1.1"]
+      - nist_800_53: ["AU-2", "AU-12"]
+    condition: all
+    rules:
+      - 'c:dpkg -l rsyslog -> r:^ii'
+
+  - id: 200045
+    title: "4.2.1.2 Ensure rsyslog service is enabled"
+    description: "Проверяем, что rsyslog запущен."
+    rationale: "Rsyslog должен работать постоянно."
+    remediation: "systemctl --now enable rsyslog"
+    compliance:
+      - cis: ["4.2.1.2"]
+      - nist_800_53: ["AU-2", "AU-12"]
+    condition: all
+    rules:
+      - 'c:systemctl is-enabled rsyslog -> r:^enabled'
+      - 'p:rsyslogd'
+
+  # ============================================================================
+  # SECTION 5.1: CRON (CIS 5.1.x)
+  # ============================================================================
+
+  - id: 200050
+    title: "5.1.1 Ensure cron daemon is enabled"
+    description: "Проверяем, что cron запущен."
+    rationale: "Cron необходим для запланированных задач."
+    remediation: "systemctl --now enable cron"
+    compliance:
+      - cis: ["5.1.1"]
+      - nist_800_53: ["CM-1"]
+    condition: all
+    rules:
+      - 'c:systemctl is-enabled cron -> r:^enabled'
+
+  - id: 200051
+    title: "5.1.2 Ensure permissions on /etc/crontab are configured"
+    description: "Проверяем права на /etc/crontab."
+    rationale: "Crontab должен быть защищён."
+    remediation: "chmod 600 /etc/crontab; chown root:root /etc/crontab"
+    compliance:
+      - cis: ["5.1.2"]
+      - nist_800_53: ["AC-3", "AC-6"]
+    condition: all
+    rules:
+      - 'c:stat -c "%a %U %G" /etc/crontab -> r:^600 root root'
+
+  - id: 200052
+    title: "5.1.3 Ensure permissions on /etc/cron.hourly are configured"
+    description: "Проверяем права на /etc/cron.hourly."
+    rationale: "Директории cron должны быть защищены."
+    remediation: "chmod 700 /etc/cron.hourly"
+    compliance:
+      - cis: ["5.1.3"]
+      - nist_800_53: ["AC-3", "AC-6"]
+    condition: all
+    rules:
+      - 'c:stat -c "%a %U %G" /etc/cron.hourly -> r:^700 root root'
+
+  - id: 200053
+    title: "5.1.4 Ensure permissions on /etc/cron.daily are configured"
+    description: "Проверяем права на /etc/cron.daily."
+    rationale: "Директории cron должны быть защищены."
+    remediation: "chmod 700 /etc/cron.daily"
+    compliance:
+      - cis: ["5.1.4"]
+      - nist_800_53: ["AC-3", "AC-6"]
+    condition: all
+    rules:
+      - 'c:stat -c "%a %U %G" /etc/cron.daily -> r:^700 root root'
+
+  - id: 200054
+    title: "5.1.8 Ensure cron is restricted to authorized users"
+    description: "Проверяем, что cron ограничен."
+    rationale: "Cron должен быть доступен только авторизованным."
+    remediation: "touch /etc/cron.allow; chmod 640 /etc/cron.allow"
+    compliance:
+      - cis: ["5.1.8"]
+      - nist_800_53: ["AC-3", "AC-6"]
+    condition: all
+    rules:
+      - 'f:/etc/cron.allow'
+
+  # ============================================================================
+  # SECTION 5.2: SSH SERVER (CIS 5.2.x)
+  # ============================================================================
+
+  - id: 200060
+    title: "5.2.1 Ensure permissions on /etc/ssh/sshd_config are configured"
+    description: "Проверяем права на sshd_config."
+    rationale: "Конфигурация SSH должна быть защищена."
+    remediation: "chmod 600 /etc/ssh/sshd_config"
+    compliance:
+      - cis: ["5.2.1"]
+      - nist_800_53: ["AC-3", "CM-6"]
+    condition: all
+    rules:
+      - 'c:stat -c "%a %U %G" /etc/ssh/sshd_config -> r:^600 root root'
+
+  - id: 200061
+    title: "5.2.2 Ensure SSH root login is disabled"
+    description: "Проверяем PermitRootLogin no."
+    rationale: "Root не должен входить напрямую по SSH."
+    remediation: "Установите PermitRootLogin no в sshd_config"
+    compliance:
+      - cis: ["5.2.2"]
+      - nist_800_53: ["AC-6"]
+    condition: all
+    rules:
+      - 'f:$sshd_config -> r:^\s*PermitRootLogin\s+no'
+      - 'c:sshd -T -> r:^permitrootlogin no'
+
+  - id: 200062
+    title: "5.2.3 Ensure SSH LogLevel is appropriate"
+    description: "Проверяем LogLevel VERBOSE или INFO."
+    rationale: "Детальные логи для аудита."
+    remediation: "Установите LogLevel VERBOSE в sshd_config"
+    compliance:
+      - cis: ["5.2.3"]
+      - nist_800_53: ["AU-3"]
+    condition: any
+    rules:
+      - 'c:sshd -T -> r:^loglevel verbose'
+      - 'c:sshd -T -> r:^loglevel info'
+
+  - id: 200063
+    title: "5.2.4 Ensure SSH LoginGraceTime is set to one minute or less"
+    description: "Проверяем LoginGraceTime <= 60."
+    rationale: "Ограничение времени снижает brute-force."
+    remediation: "Установите LoginGraceTime 60 в sshd_config"
+    compliance:
+      - cis: ["5.2.4"]
+      - nist_800_53: ["AC-7"]
+    condition: all
+    rules:
+      - 'c:sshd -T -> n:^logingracetime\s+(\d+) compare <= 60'
+
+  - id: 200064
+    title: "5.2.5 Ensure SSH MaxAuthTries is set to 4 or less"
+    description: "Проверяем MaxAuthTries <= 4."
+    rationale: "Ограничение попыток защищает от brute-force."
+    remediation: "Установите MaxAuthTries 4 в sshd_config"
+    compliance:
+      - cis: ["5.2.5"]
+      - nist_800_53: ["AC-7"]
+    condition: all
+    rules:
+      - 'c:sshd -T -> n:^maxauthtries\s+(\d+) compare <= 4'
+
+  - id: 200065
+    title: "5.2.6 Ensure SSH MaxSessions is set to 10 or less"
+    description: "Проверяем MaxSessions <= 10."
+    rationale: "Ограничение сессий снижает риск DoS."
+    remediation: "Установите MaxSessions 10 в sshd_config"
+    compliance:
+      - cis: ["5.2.6"]
+      - nist_800_53: ["SC-5"]
+    condition: all
+    rules:
+      - 'c:sshd -T -> n:^maxsessions\s+(\d+) compare <= 10'
+
+  - id: 200066
+    title: "5.2.7 Ensure SSH MaxStartups is configured"
+    description: "Проверяем MaxStartups настроен."
+    rationale: "Ограничение защищает от DoS на соединения."
+    remediation: "Установите MaxStartups 10:30:60 в sshd_config"
+    compliance:
+      - cis: ["5.2.7"]
+      - nist_800_53: ["SC-5"]
+    condition: all
+    rules:
+      - 'c:sshd -T -> r:^maxstartups\s+10:30:60|^maxstartups\s+10:30:100'
+
+  - id: 200067
+    title: "5.2.8 Ensure SSH IgnoreRhosts is enabled"
+    description: "Проверяем IgnoreRhosts yes."
+    rationale: "Игнорирование rhosts предотвращает уязвимые методы."
+    remediation: "Установите IgnoreRhosts yes в sshd_config"
+    compliance:
+      - cis: ["5.2.8"]
+      - nist_800_53: ["IA-2"]
+    condition: all
+    rules:
+      - 'c:sshd -T -> r:^ignorerhosts yes'
+
+  - id: 200068
+    title: "5.2.9 Ensure SSH HostbasedAuthentication is disabled"
+    description: "Проверяем HostbasedAuthentication no."
+    rationale: "Hostbased уязвима к spoofing."
+    remediation: "Установите HostbasedAuthentication no в sshd_config"
+    compliance:
+      - cis: ["5.2.9"]
+      - nist_800_53: ["IA-2"]
+    condition: all
+    rules:
+      - 'c:sshd -T -> r:^hostbasedauthentication no'
+
+  - id: 200069
+    title: "5.2.10 Ensure SSH PermitEmptyPasswords is disabled"
+    description: "Проверяем PermitEmptyPasswords no."
+    rationale: "Пустые пароли — критическая уязвимость."
+    remediation: "Установите PermitEmptyPasswords no в sshd_config"
+    compliance:
+      - cis: ["5.2.10"]
+      - nist_800_53: ["IA-5"]
+    condition: all
+    rules:
+      - 'c:sshd -T -> r:^permitemptypasswords no'
+
+  - id: 200070
+    title: "5.2.11 Ensure SSH PermitUserEnvironment is disabled"
+    description: "Проверяем PermitUserEnvironment no."
+    rationale: "Предотвращает инъекции переменных окружения."
+    remediation: "Установите PermitUserEnvironment no в sshd_config"
+    compliance:
+      - cis: ["5.2.11"]
+      - nist_800_53: ["SC-18"]
+    condition: all
+    rules:
+      - 'c:sshd -T -> r:^permituserenvironment no'
+
+  - id: 200071
+    title: "5.2.12 Ensure only strong Ciphers are used"
+    description: "Проверяем отсутствие слабых шифров."
+    rationale: "Слабые шифры могут привести к MITM."
+    remediation: "Настройте Ciphers в sshd_config без 3des, arcfour, blowfish"
+    compliance:
+      - cis: ["5.2.12"]
+      - nist_800_53: ["SC-8"]
+    condition: none
+    rules:
+      - 'c:sshd -T -> r:^ciphers.*3des|^ciphers.*arcfour|^ciphers.*blowfish'
+
+  - id: 200072
+    title: "5.2.13 Ensure only strong MAC algorithms are used"
+    description: "Проверяем отсутствие слабых MAC."
+    rationale: "Слабые MAC могут привести к атакам."
+    remediation: "Настройте MACs в sshd_config без md5, 96-bit"
+    compliance:
+      - cis: ["5.2.13"]
+      - nist_800_53: ["SC-8"]
+    condition: none
+    rules:
+      - 'c:sshd -T -> r:^macs.*md5|^macs.*96'
+
+  - id: 200073
+    title: "5.2.14 Ensure only strong Key Exchange algorithms are used"
+    description: "Проверяем отсутствие слабых KEX."
+    rationale: "Слабые KEX могут привести к атакам."
+    remediation: "Настройте KexAlgorithms в sshd_config без diffie-hellman-group1"
+    compliance:
+      - cis: ["5.2.14"]
+      - nist_800_53: ["SC-8"]
+    condition: none
+    rules:
+      - 'c:sshd -T -> r:^kexalgorithms.*diffie-hellman-group1'
+
+  - id: 200074
+    title: "5.2.15 Ensure SSH AllowTcpForwarding is disabled"
+    description: "Проверяем AllowTcpForwarding no."
+    rationale: "Отключение предотвращает туннелирование."
+    remediation: "Установите AllowTcpForwarding no в sshd_config"
+    compliance:
+      - cis: ["5.2.15"]
+      - nist_800_53: ["SC-7"]
+    condition: all
+    rules:
+      - 'c:sshd -T -> r:^allowtcpforwarding no'
+
+  - id: 200075
+    title: "5.2.16 Ensure SSH X11 forwarding is disabled"
+    description: "Проверяем X11Forwarding no."
+    rationale: "X11 уязвим к захвату сессий."
+    remediation: "Установите X11Forwarding no в sshd_config"
+    compliance:
+      - cis: ["5.2.16"]
+      - nist_800_53: ["SC-7"]
+    condition: all
+    rules:
+      - 'c:sshd -T -> r:^x11forwarding no'
+
+  - id: 200076
+    title: "5.2.17 Ensure SSH warning banner is configured"
+    description: "Проверяем Banner настроен."
+    rationale: "Баннер предупреждает о мониторинге."
+    remediation: "Установите Banner /etc/issue.net в sshd_config"
+    compliance:
+      - cis: ["5.2.17"]
+      - nist_800_53: ["AC-8"]
+    condition: all
+    rules:
+      - 'c:sshd -T -> r:^banner\s+/'
+
+  - id: 200077
+    title: "5.2.18 Ensure SSH PAM is enabled"
+    description: "Проверяем UsePAM yes."
+    rationale: "PAM обеспечивает дополнительный контроль."
+    remediation: "Установите UsePAM yes в sshd_config"
+    compliance:
+      - cis: ["5.2.18"]
+      - nist_800_53: ["IA-5"]
+    condition: all
+    rules:
+      - 'c:sshd -T -> r:^usepam yes'
+
+  - id: 200078
+    title: "5.2.20 Ensure SSH Idle Timeout Interval is configured"
+    description: "Проверяем ClientAliveInterval и ClientAliveCountMax."
+    rationale: "Отключение неактивных сессий снижает риск."
+    remediation: "Установите ClientAliveInterval 300; ClientAliveCountMax 3"
+    compliance:
+      - cis: ["5.2.20"]
+      - nist_800_53: ["SC-10"]
+    condition: all
+    rules:
+      - 'c:sshd -T -> n:^clientaliveinterval\s+(\d+) compare > 0'
+      - 'c:sshd -T -> n:^clientalivecountmax\s+(\d+) compare <= 3'
+
+  # ============================================================================
+  # SECTION 5.3: PRIVILEGE ESCALATION (CIS 5.3.x)
+  # ============================================================================
+
+  - id: 200080
+    title: "5.3.1 Ensure sudo is installed"
+    description: "Проверяем, что sudo установлен."
+    rationale: "Sudo необходим для контролируемого повышения привилегий."
+    remediation: "apt install sudo"
+    compliance:
+      - cis: ["5.3.1"]
+      - nist_800_53: ["AC-6"]
+    condition: all
+    rules:
+      - 'c:dpkg -l sudo -> r:^ii'
+
+  - id: 200081
+    title: "5.3.2 Ensure sudo commands use pty"
+    description: "Проверяем Defaults use_pty в sudoers."
+    rationale: "PTY предотвращает некоторые атаки."
+    remediation: "Добавьте Defaults use_pty в /etc/sudoers"
+    compliance:
+      - cis: ["5.3.2"]
+      - nist_800_53: ["AC-6"]
+    condition: any
+    rules:
+      - 'f:$sudoers_file -> r:^Defaults\s+use_pty'
+      - 'c:grep -r "Defaults.*use_pty" /etc/sudoers.d/ 2>/dev/null -> r:use_pty'
+
+  - id: 200082
+    title: "5.3.3 Ensure sudo log file exists"
+    description: "Проверяем Defaults logfile в sudoers."
+    rationale: "Логирование sudo необходимо для аудита."
+    remediation: "Добавьте Defaults logfile=/var/log/sudo.log"
+    compliance:
+      - cis: ["5.3.3"]
+      - nist_800_53: ["AU-2"]
+    condition: any
+    rules:
+      - 'f:$sudoers_file -> r:^Defaults\s+logfile'
+      - 'c:grep -r "Defaults.*logfile" /etc/sudoers.d/ 2>/dev/null -> r:logfile'
+
+  # ============================================================================
+  # SECTION 5.4: USER ACCOUNTS AND ENVIRONMENT (CIS 5.4.x)
+  # ============================================================================
+
+  - id: 200090
+    title: "5.4.1.1 Ensure password expiration is 365 days or less"
+    description: "Проверяем PASS_MAX_DAYS <= 365."
+    rationale: "Регулярная смена паролей снижает риск."
+    remediation: "Установите PASS_MAX_DAYS 365 в /etc/login.defs"
+    compliance:
+      - cis: ["5.4.1.1"]
+      - nist_800_53: ["IA-5"]
+    condition: all
+    rules:
+      - 'f:$login_defs -> n:^PASS_MAX_DAYS\s+(\d+) compare <= 365'
+
+  - id: 200091
+    title: "5.4.1.2 Ensure minimum days between password changes is 1 or more"
+    description: "Проверяем PASS_MIN_DAYS >= 1."
+    rationale: "Предотвращает быструю смену паролей."
+    remediation: "Установите PASS_MIN_DAYS 1 в /etc/login.defs"
+    compliance:
+      - cis: ["5.4.1.2"]
+      - nist_800_53: ["IA-5"]
+    condition: all
+    rules:
+      - 'f:$login_defs -> n:^PASS_MIN_DAYS\s+(\d+) compare >= 1'
+
+  - id: 200092
+    title: "5.4.1.3 Ensure password expiration warning days is 7 or more"
+    description: "Проверяем PASS_WARN_AGE >= 7."
+    rationale: "Предупреждение о смене пароля."
+    remediation: "Установите PASS_WARN_AGE 7 в /etc/login.defs"
+    compliance:
+      - cis: ["5.4.1.3"]
+      - nist_800_53: ["IA-5"]
+    condition: all
+    rules:
+      - 'f:$login_defs -> n:^PASS_WARN_AGE\s+(\d+) compare >= 7'
+
+  - id: 200093
+    title: "5.4.4 Ensure default user umask is 027 or more restrictive"
+    description: "Проверяем umask 027 или строже."
+    rationale: "Ограничение прав по умолчанию."
+    remediation: "Установите UMASK 027 в /etc/login.defs"
+    compliance:
+      - cis: ["5.4.4"]
+      - nist_800_53: ["AC-3"]
+    condition: any
+    rules:
+      - 'f:$login_defs -> r:^UMASK\s+027|^UMASK\s+077'
+      - 'f:/etc/profile -> r:umask\s+027|umask\s+077'
+
+  # ============================================================================
+  # SECTION 6: SYSTEM MAINTENANCE (CIS 6.x)
+  # ============================================================================
+
+  - id: 200100
+    title: "6.1.2 Ensure permissions on /etc/passwd are configured"
+    description: "Проверяем права на /etc/passwd."
+    rationale: "Некорректные права позволяют модификацию."
+    remediation: "chmod 644 /etc/passwd; chown root:root /etc/passwd"
+    compliance:
+      - cis: ["6.1.2"]
+      - nist_800_53: ["AC-3"]
+    condition: all
+    rules:
+      - 'c:stat -c "%a %U %G" /etc/passwd -> r:^644 root root'
+
+  - id: 200101
+    title: "6.1.3 Ensure permissions on /etc/passwd- are configured"
+    description: "Проверяем права на /etc/passwd-."
+    rationale: "Backup файл должен быть защищён."
+    remediation: "chmod 644 /etc/passwd-; chown root:root /etc/passwd-"
+    compliance:
+      - cis: ["6.1.3"]
+      - nist_800_53: ["AC-3"]
+    condition: all
+    rules:
+      - 'c:stat -c "%a %U %G" /etc/passwd- -> r:^644 root root|^600 root root'
+
+  - id: 200102
+    title: "6.1.4 Ensure permissions on /etc/group are configured"
+    description: "Проверяем права на /etc/group."
+    rationale: "Некорректные права позволяют модификацию."
+    remediation: "chmod 644 /etc/group; chown root:root /etc/group"
+    compliance:
+      - cis: ["6.1.4"]
+      - nist_800_53: ["AC-3"]
+    condition: all
+    rules:
+      - 'c:stat -c "%a %U %G" /etc/group -> r:^644 root root'
+
+  - id: 200103
+    title: "6.1.5 Ensure permissions on /etc/group- are configured"
+    description: "Проверяем права на /etc/group-."
+    rationale: "Backup файл должен быть защищён."
+    remediation: "chmod 644 /etc/group-; chown root:root /etc/group-"
+    compliance:
+      - cis: ["6.1.5"]
+      - nist_800_53: ["AC-3"]
+    condition: all
+    rules:
+      - 'c:stat -c "%a %U %G" /etc/group- -> r:^644 root root|^600 root root'
+
+  - id: 200104
+    title: "6.1.6 Ensure permissions on /etc/shadow are configured"
+    description: "Проверяем права на /etc/shadow."
+    rationale: "Shadow содержит хеши паролей."
+    remediation: "chmod 640 /etc/shadow; chown root:shadow /etc/shadow"
+    compliance:
+      - cis: ["6.1.6"]
+      - nist_800_53: ["AC-3"]
+    condition: all
+    rules:
+      - 'c:stat -c "%a %U" /etc/shadow -> r:^640 root|^600 root|^0 root'
+
+  - id: 200105
+    title: "6.1.7 Ensure permissions on /etc/shadow- are configured"
+    description: "Проверяем права на /etc/shadow-."
+    rationale: "Backup файл должен быть защищён."
+    remediation: "chmod 640 /etc/shadow-; chown root:shadow /etc/shadow-"
+    compliance:
+      - cis: ["6.1.7"]
+      - nist_800_53: ["AC-3"]
+    condition: all
+    rules:
+      - 'c:stat -c "%a %U" /etc/shadow- -> r:^640 root|^600 root|^0 root'
+
+  - id: 200106
+    title: "6.1.8 Ensure permissions on /etc/gshadow are configured"
+    description: "Проверяем права на /etc/gshadow."
+    rationale: "Gshadow содержит хеши групповых паролей."
+    remediation: "chmod 640 /etc/gshadow; chown root:shadow /etc/gshadow"
+    compliance:
+      - cis: ["6.1.8"]
+      - nist_800_53: ["AC-3"]
+    condition: all
+    rules:
+      - 'c:stat -c "%a %U" /etc/gshadow -> r:^640 root|^600 root|^0 root'
+
+  - id: 200107
+    title: "6.1.9 Ensure permissions on /etc/gshadow- are configured"
+    description: "Проверяем права на /etc/gshadow-."
+    rationale: "Backup файл должен быть защищён."
+    remediation: "chmod 640 /etc/gshadow-; chown root:shadow /etc/gshadow-"
+    compliance:
+      - cis: ["6.1.9"]
+      - nist_800_53: ["AC-3"]
+    condition: all
+    rules:
+      - 'c:stat -c "%a %U" /etc/gshadow- -> r:^640 root|^600 root|^0 root'
+
+  - id: 200108
+    title: "6.1.10 Ensure no world writable files exist"
+    description: "Проверяем отсутствие world-writable файлов."
+    rationale: "World-writable файлы — уязвимость."
+    remediation: "find / -xdev -type f -perm -0002 -exec chmod o-w {} \\;"
+    compliance:
+      - cis: ["6.1.10"]
+      - nist_800_53: ["AC-3"]
+    condition: all
+    rules:
+      - 'c:find /etc -xdev -type f -perm -0002 2>/dev/null | wc -l -> r:^0$'
+
+  - id: 200109
+    title: "6.2.1 Ensure accounts in /etc/passwd use shadowed passwords"
+    description: "Проверяем, что пароли в shadow."
+    rationale: "Пароли не должны храниться в passwd."
+    remediation: "pwconv"
+    compliance:
+      - cis: ["6.2.1"]
+      - nist_800_53: ["IA-5"]
+    condition: none
+    rules:
+      - 'f:$passwd_file -> r:^[^:]+:[^x:]'
+
+  - id: 200110
+    title: "6.2.2 Ensure /etc/shadow password fields are not empty"
+    description: "Проверяем отсутствие пустых паролей."
+    rationale: "Пустые пароли — критическая уязвимость."
+    remediation: "Установите пароли или заблокируйте аккаунты."
+    compliance:
+      - cis: ["6.2.2"]
+      - nist_800_53: ["IA-5"]
+    condition: none
+    rules:
+      - 'c:awk -F: "($2 == \"\" ) { print $1 }" /etc/shadow -> r:.'
+
+  - id: 200111
+    title: "6.2.3 Ensure root is the only UID 0 account"
+    description: "Проверяем, что только root имеет UID 0."
+    rationale: "Несколько UID 0 — критическая уязвимость."
+    remediation: "Удалите или измените UID пользователей."
+    compliance:
+      - cis: ["6.2.3"]
+      - nist_800_53: ["AC-6"]
+    condition: all
+    rules:
+      - 'c:awk -F: "($3 == 0) { print $1 }" /etc/passwd -> r:^root$'

@@ -58,18 +58,27 @@
 
 24    chain=output action=drop port=1701,1723,1900,1966,2828,2000,5246,5247,5678,6343,8728,8729 log=no log-prefix="" protocol=udp 
 
-25    ;;; drop non tcp and udp traffik
+25    ;;; allow essential ICMP for Path MTU Discovery
+      chain=prerouting action=accept protocol=icmp icmp-options=3:0-15 log=no log-prefix="" 
+
+26    chain=prerouting action=accept protocol=icmp icmp-options=11:0-1 log=no log-prefix="" 
+
+27    chain=output action=accept protocol=icmp icmp-options=3:0-15 log=no log-prefix="" 
+
+28    chain=output action=accept protocol=icmp icmp-options=11:0-1 log=no log-prefix="" 
+
+29    ;;; drop other ICMP
       chain=prerouting action=drop log=no log-prefix="" protocol=icmp 
 
-26    chain=output action=drop log=no log-prefix="" protocol=icmp 
+30    chain=output action=drop log=no log-prefix="" protocol=icmp 
 
-27    chain=prerouting action=drop log=no log-prefix="" protocol=igmp 
+31    chain=prerouting action=drop log=no log-prefix="" protocol=igmp 
 
-28    chain=output action=drop log=no log-prefix="" protocol=igmp 
+32    chain=output action=drop log=no log-prefix="" protocol=igmp 
 
-29    chain=prerouting action=jump jump-target=drop_non_udp_and_tcp log=no log-prefix="" protocol=!tcp 
+33    chain=prerouting action=jump jump-target=drop_non_udp_and_tcp log=no log-prefix="" protocol=!tcp 
 
-30    chain=output action=jump jump-target=drop_non_udp_and_tcp log=no log-prefix="" protocol=!tcp 
+34    chain=output action=jump jump-target=drop_non_udp_and_tcp log=no log-prefix="" protocol=!tcp 
 
-31    chain=drop_non_udp_and_tcp action=drop log=yes log-prefix="RAW 31: " protocol=!udp
+35    chain=drop_non_udp_and_tcp action=drop log=yes log-prefix="RAW 35: " protocol=!udp
 

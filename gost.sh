@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Проверка прав пользователя
-if [ $(id -u)!= "0" ]; then
+if [ "$(id -u)" != "0" ]; then
     echo "Этот скрипт должен быть выполнен с правами суперпользователя (root)"
     exit 1
 fi
@@ -28,32 +28,21 @@ CRON_DIR="/etc/cron.daily/"
 AFICK_CRON_SCRIPT="$CRON_DIR/afick_cron"
 
 # Создаем файл конфигурации, если он не существует
-if [! -f "$CONFIG_FILE" ]; then
-    echo "boot\tGOST" >> $CONFIG_FILE
-    echo "/bin\tGOST" >> $CONFIG_FILE
-    echo "/etc/security\tPARSEC" >> $CONFIG_FILE
-    echo "/etc/pam.d\tPARSEC" >> $CONFIG_FILE
-    echo "/etc/fstab\tPARSEC" >> $CONFIG_FILE
-    echo "/lib/modules\tPARSEC" >> $CONFIG_FILE
-    echo "/lib64/security\tPARSEC" >> $CONFIG_FILE
-    echo "/lib/security\tPARSEC" >> $CONFIG_FILE
-    echo "/sbin\tPARSEC" >> $CONFIG_FILE
-    echo "/usr/bin\tPARSEC" >> $CONFIG_FILE
-    echo "/usr/lib\tPARSEC" >> $CONFIG_FILE
-    echo "/usr/sbin\tPARSEC" >> $CONFIG_FILE
-    echo "/boot\tGOST" >> $CONFIG_FILE
-    echo "/bin\tGOST" >> $CONFIG_FILE
-    echo "/etc/security\tPARSEC" >> $CONFIG_FILE
-    echo "/etc/pam.d\tPARSEC" >> $CONFIG_FILE
-    echo "/etc/fstab\tPARSEC" >> $CONFIG_FILE
-    echo "/lib/modules\tPARSEC" >> $CONFIG_FILE
-    echo "/lib64/security\tPARSEC" >> $CONFIG_FILE
-    echo "/lib/security\tPARSEC" >> $CONFIG_FILE
-    echo "/sbin\tPARSEC" >> $CONFIG_FILE
-    echo "/usr/bin\tPARSEC" >> $CONFIG_FILE
-    echo "/usr/lib\tPARSEC" >> $CONFIG_FILE
-    echo "/usr/sbin\tPARSEC" >> $CONFIG_FILE
-    #echo "# Дополнительные пути с правилами" >> $CONFIG_FILE
+if [ ! -f "$CONFIG_FILE" ]; then
+    cat >> "$CONFIG_FILE" << 'EOF'
+/boot	GOST
+/bin	GOST
+/etc/security	PARSEC
+/etc/pam.d	PARSEC
+/etc/fstab	PARSEC
+/lib/modules	PARSEC
+/lib64/security	PARSEC
+/lib/security	PARSEC
+/sbin	PARSEC
+/usr/bin	PARSEC
+/usr/lib	PARSEC
+/usr/sbin	PARSEC
+EOF
 fi
 
 # Настройка afick

@@ -33,10 +33,7 @@
 13    ;;; Port scanners to list 
       chain=input action=add-src-to-address-list protocol=tcp psd=21,3s,3,1 src-address-list=!z_BLOCKLIST_WORLD address-list=z_BLOCKLIST_WORLD address-list-timeout=2w in-interface=1-wan log=yes log-prefix="Mangle 13: " 
 
-14    ;;; Port scanners to list 
-      chain=input action=add-src-to-address-list protocol=tcp psd=21,3s,3,1 src-address-list=!z_BLOCKLIST_WORLD address-list=z_BLOCKLIST_WORLD address-list-timeout=2w in-interface=1-wan log=yes log-prefix="Mangle 14: " 
-
-15    ;;; NMAP FIN Stealth scan
+14    ;;; NMAP FIN Stealth scan
       chain=input action=add-src-to-address-list tcp-flags=fin,!syn,!rst,!psh,!ack,!urg protocol=tcp src-address-list=!z_BLOCKLIST_WORLD address-list=z_BLOCKLIST_WORLD address-list-timeout=2w in-interface=1-wan log=yes log-prefix="Mangle 15: " 
 
 16    ;;; SYN/FIN scan
@@ -75,17 +72,14 @@
 
 29    chain=forward action=mark-packet new-packet-mark=sip_src_mark passthrough=no connection-state=established,related protocol=udp src-address-list=mylan_ip dst-address-list=SIP_IP in-interface=2-mylan out-interface=1-wan log=no log-prefix="" 
 
-30    ;;; messangers ip 
-      chain=forward action=mark-packet new-packet-mark=messangers_traffik_dst passthrough=no tcp-flags="" connection-state=new src-address-list=local_ip dst-address-list=messangers_ip out-interface=1-wan in-interface-list=lan+wifi log=no 
+30    ;;; messengers ip 
+      chain=forward action=mark-packet new-packet-mark=messengers_traffic_dst passthrough=no tcp-flags="" connection-state=new src-address-list=local_ip dst-address-list=messengers_ip out-interface=1-wan in-interface-list=lan+wifi log=no 
       log-prefix="" 
 
-31    chain=forward action=mark-packet new-packet-mark=messangers_traffik_dst passthrough=no connection-state=established,related src-address-list=local_ip dst-address-list=messangers_ip out-interface=1-wan in-interface-list=lan+wifi log=no 
+31    chain=forward action=mark-packet new-packet-mark=messengers_traffic_dst passthrough=no connection-state=established,related src-address-list=local_ip dst-address-list=messengers_ip out-interface=1-wan in-interface-list=lan+wifi log=no 
       log-prefix="" 
 
-32    chain=forward action=mark-packet new-packet-mark=messangers_traffik_dst passthrough=no connection-state=established,related src-address-list=local_ip dst-address-list=messangers_ip out-interface=1-wan in-interface-list=lan+wifi log=no 
-      log-prefix="" 
-
-33    ;;; or QOS all work traffik to mylan Part1
+32    ;;; for QOS all work traffic to mylan Part1
       chain=forward action=mark-packet new-packet-mark=mywork1_dst_mark passthrough=no connection-state=new src-address-list=mylan_ip dst-address-list=mywork_ip in-interface=2-mylan out-interface=1-wan log=no log-prefix="" 
 
 34    ;;; for QOS TCP handshake

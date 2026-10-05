@@ -1,0 +1,543 @@
+# Security Configuration Assessment
+# Custom Hardening Policy for Linux/Windows systems
+#
+# This program is free software; you can redistribute it
+# and/or modify it under the terms of the GNU General Public
+# License (version 2) as published by the FSF - Free Software
+# Foundation
+#
+# ID Range: 200000-299999 (custom SCA, no conflicts with default policies)
+# 
+# Deployment:
+#   Manager: /var/ossec/etc/shared/default/sca_custom_hardening.yml
+#   Agent config:
+#     <sca>
+#       <policies>
+#         <policy>etc/shared/sca_custom_hardening.yml</policy>
+#       </policies>
+#     </sca>
+
+policy:
+  id: "custom_hardening"
+  file: "sca_custom_hardening.yml"
+  name: "Custom System Hardening Assessment"
+  description: "Комплексная проверка конфигурации системы: SSH hardening, аутентификация, сетевая безопасность, файловая система."
+  references:
+    - "https://cisecurity.org/benchmark/linux_server"
+    - "https://www.ssh.com/academy/ssh/config"
+    - "https://www.nist.gov/itl/applied-cybersecurity/nist-cybersecurity-framework"
+    - "https://habr.com/ru/articles/971636/"
+
+requirements:
+  title: "Требования для запуска сканирования"
+  description: "Проверяем наличие ключевых компонентов перед сканированием."
+  condition: any
+  rules:
+    - 'f:/etc/ssh/sshd_config'
+    - 'f:/etc/passwd'
+    - 'f:/etc/shadow'
+
+variables:
+  $sshd_config: "/etc/ssh/sshd_config"
+  $sshd_config_d: "/etc/ssh/sshd_config.d"
+  $passwd_file: "/etc/passwd"
+  $shadow_file: "/etc/shadow"
+  $sudoers_file: "/etc/sudoers"
+  $pam_dir: "/etc/pam.d"
+  $audit_rules: "/etc/audit/rules.d"
+
+checks:
+  # ==================== SSH HARDENING (CIS 5.2.x) ====================
+
+  - id: 200000
+    title: "SSH: PermitRootLogin отключен"
+    description: "Проверяем, что прямой вход root по SSH запрещён (PermitRootLogin = no)."
+    rationale: "Запрет root-логинов снижает риск компрометации привилегированного аккаунта (CIS 5.2.2, NIST AC-6)."
+    remediation: "Добавьте в sshd_config: PermitRootLogin no; перезапустите sshd: systemctl restart sshd."
+    compliance:
+      - cis: ["5.2.2"]
+      - nist_800_53: ["AC-6"]
+    condition: all
+    rules:
+      - 'f:$sshd_config -> r:^PermitRootLogin\s+no'
+
+  - id: 200001
+    title: "SSH: PasswordAuthentication отключена"
+    description: "Проверяем, что аутентификация по паролю отключена (PasswordAuthentication = no)."
+    rationale: "Отключение паролей заставляет использовать ключи, повышая безопасность (CIS 5.2.21, NIST IA-5)."
+    remediation: "Добавьте в sshd_config: PasswordAuthentication no; перезапустите sshd."
+    compliance:
+      - cis: ["5.2.21"]
+      - nist_800_53: ["IA-5"]
+    condition: all
+    rules:
+      - 'f:$sshd_config -> r:^PasswordAuthentication\s+no'
+
+  - id: 200002
+    title: "SSH: PubkeyAuthentication включена"
+    description: "Проверяем, что аутентификация по ключу включена (PubkeyAuthentication = yes)."
+    rationale: "Ключевая аутентификация безопаснее паролей (CIS 5.2.8, NIST IA-5)."
+    remediation: "Добавьте в sshd_config: PubkeyAuthentication yes; перезапустите sshd."
+    compliance:
+      - cis: ["5.2.8"]
+      - nist_800_53: ["IA-5"]
+    condition: all
+    rules:
+      - 'f:$sshd_config -> r:^PubkeyAuthentication\s+yes'
+
+  - id: 200003
+    title: "SSH: MaxAuthTries <= 4"
+    description: "Проверяем, что максимум попыток аутентификации не превышает 4."
+    rationale: "Ограничение попыток защищает от brute-force атак (CIS 5.2.5, NIST AC-7)."
+    remediation: "Добавьте в sshd_config: MaxAuthTries 4; перезапустите sshd."
+    compliance:
+      - cis: ["5.2.5"]
+      - nist_800_53: ["AC-7"]
+    condition: all
+    rules:
+      - 'f:$sshd_config -> n:^MaxAuthTries\s+(\d+) compare <= 4'
+
+  - id: 200004
+    title: "SSH: LoginGraceTime <= 60"
+    description: "Проверяем, что время ожидания логина не превышает 60 секунд."
+    rationale: "Ограничение времени снижает риск brute-force атак (CIS 5.2.4, NIST AC-7)."
+    remediation: "Добавьте в sshd_config: LoginGraceTime 60; перезапустите sshd."
+    compliance:
+      - cis: ["5.2.4"]
+      - nist_800_53: ["AC-7"]
+    condition: all
+    rules:
+      - 'f:$sshd_config -> n:^LoginGraceTime\s+(\d+) compare <= 60'
+
+  - id: 200005
+    title: "SSH: X11Forwarding отключен"
+    description: "Проверяем, что X11-форвардинг отключён (X11Forwarding = no)."
+    rationale: "X11 уязвим к захвату сессий; отключение повышает безопасность (CIS 5.2.14, NIST SC-7)."
+    remediation: "Добавьте в sshd_config: X11Forwarding no; перезапустите sshd."
+    compliance:
+      - cis: ["5.2.14"]
+      - nist_800_53: ["SC-7"]
+    condition: all
+    rules:
+      - 'f:$sshd_config -> r:^X11Forwarding\s+no'
+
+  - id: 200006
+    title: "SSH: AllowTcpForwarding отключен"
+    description: "Проверяем, что TCP-форвардинг отключён (AllowTcpForwarding = no)."
+    rationale: "Отключение форвардинга предотвращает туннелирование (CIS 5.2.13, NIST SC-7)."
+    remediation: "Добавьте в sshd_config: AllowTcpForwarding no; перезапустите sshd."
+    compliance:
+      - cis: ["5.2.13"]
+      - nist_800_53: ["SC-7"]
+    condition: all
+    rules:
+      - 'f:$sshd_config -> r:^AllowTcpForwarding\s+no'
+
+  - id: 200007
+    title: "SSH: HostbasedAuthentication отключена"
+    description: "Проверяем, что HostbasedAuthentication отключена (no)."
+    rationale: "Hostbased уязвима к spoofing; отключение повышает безопасность (CIS 5.2.9, NIST IA-2)."
+    remediation: "Добавьте в sshd_config: HostbasedAuthentication no; перезапустите sshd."
+    compliance:
+      - cis: ["5.2.9"]
+      - nist_800_53: ["IA-2"]
+    condition: all
+    rules:
+      - 'f:$sshd_config -> r:^HostbasedAuthentication\s+no'
+
+  - id: 200008
+    title: "SSH: IgnoreRhosts включен"
+    description: "Проверяем, что IgnoreRhosts = yes (игнорировать .rhosts)."
+    rationale: "Игнорирование rhosts предотвращает старые уязвимые методы аутентификации (CIS 5.2.10, NIST IA-2)."
+    remediation: "Добавьте в sshd_config: IgnoreRhosts yes; перезапустите sshd."
+    compliance:
+      - cis: ["5.2.10"]
+      - nist_800_53: ["IA-2"]
+    condition: all
+    rules:
+      - 'f:$sshd_config -> r:^IgnoreRhosts\s+yes'
+
+  - id: 200009
+    title: "SSH: PermitEmptyPasswords отключен"
+    description: "Проверяем, что пустые пароли запрещены (PermitEmptyPasswords = no)."
+    rationale: "Пустые пароли — критическая уязвимость (CIS 5.2.11, NIST IA-5)."
+    remediation: "Добавьте в sshd_config: PermitEmptyPasswords no; перезапустите sshd."
+    compliance:
+      - cis: ["5.2.11"]
+      - nist_800_53: ["IA-5"]
+    condition: all
+    rules:
+      - 'f:$sshd_config -> r:^PermitEmptyPasswords\s+no'
+
+  - id: 200010
+    title: "SSH: LogLevel установлен на VERBOSE или INFO"
+    description: "Проверяем, что уровень логирования достаточен для аудита."
+    rationale: "Детальные логи позволяют отслеживать подозрительные попытки аутентификации (CIS 5.2.3, NIST AU-3)."
+    remediation: "Добавьте в sshd_config: LogLevel VERBOSE; перезапустите sshd."
+    compliance:
+      - cis: ["5.2.3"]
+      - nist_800_53: ["AU-3"]
+    condition: any
+    rules:
+      - 'f:$sshd_config -> r:^LogLevel\s+VERBOSE'
+      - 'f:$sshd_config -> r:^LogLevel\s+INFO'
+
+  - id: 200011
+    title: "SSH: Нет слабых шифров в конфигурации"
+    description: "Проверяем, что в конфигурации SSH нет слабых шифров (MD5, DES, RC4, 3DES)."
+    rationale: "Использование слабых шифров может привести к MITM-атакам (CIS 5.2.12, NIST SC-8)."
+    remediation: "Удалите слабые шифры из Ciphers, MACs, KexAlgorithms в sshd_config."
+    compliance:
+      - cis: ["5.2.12"]
+      - nist_800_53: ["SC-8"]
+    condition: all
+    rules:
+      - 'f:$sshd_config -> !r:MD5|DES|RC4|3DES|arcfour'
+
+  - id: 200012
+    title: "SSH: Нет слабых шифров в sshd_config.d"
+    description: "Проверяем, что в директории sshd_config.d нет файлов со слабыми шифрами."
+    rationale: "Include-файлы могут переопределять безопасные настройки (CIS 5.2.12)."
+    remediation: "Проверьте все файлы в /etc/ssh/sshd_config.d/ на наличие слабых шифров."
+    compliance:
+      - cis: ["5.2.12"]
+    condition: all
+    rules:
+      - 'd:$sshd_config_d -> r:\.conf$ -> !r:(MD5|DES|RC4|3DES|arcfour)'
+
+  - id: 200013
+    title: "SSH: ClientAliveInterval настроен"
+    description: "Проверяем, что ClientAliveInterval установлен для отключения неактивных сессий."
+    rationale: "Автоматическое отключение неактивных сессий снижает риск захвата (CIS 5.2.16, NIST SC-10)."
+    remediation: "Добавьте в sshd_config: ClientAliveInterval 300; ClientAliveCountMax 3."
+    compliance:
+      - cis: ["5.2.16"]
+      - nist_800_53: ["SC-10"]
+    condition: all
+    rules:
+      - 'f:$sshd_config -> n:^ClientAliveInterval\s+(\d+) compare > 0'
+
+  - id: 200014
+    title: "SSH: Banner настроен"
+    description: "Проверяем, что баннер предупреждения установлен."
+    rationale: "Баннер может содержать предупреждение о мониторинге (CIS 5.2.24, NIST AC-8)."
+    remediation: "Добавьте в sshd_config: Banner /etc/issue.net."
+    compliance:
+      - cis: ["5.2.24"]
+      - nist_800_53: ["AC-8"]
+    condition: all
+    rules:
+      - 'f:$sshd_config -> r:^Banner\s+/'
+
+  # ==================== USER ACCOUNTS (CIS 5.4.x) ====================
+
+  - id: 200020
+    title: "Нет пользователей с UID 0 кроме root"
+    description: "Проверяем, что только root имеет UID 0."
+    rationale: "Несколько пользователей с UID 0 — критическая уязвимость (CIS 6.2.2)."
+    remediation: "Удалите или измените UID пользователей с UID 0 (кроме root)."
+    compliance:
+      - cis: ["6.2.2"]
+      - nist_800_53: ["AC-6"]
+    condition: all
+    rules:
+      - 'f:$passwd_file -> !r:^(?!root:).*:0:'
+
+  - id: 200021
+    title: "Root аккаунт заблокирован для прямого входа"
+    description: "Проверяем, что root не может войти напрямую (пароль заблокирован)."
+    rationale: "Прямой вход root должен быть запрещён; используйте sudo (CIS 5.4.2)."
+    remediation: "Выполните: passwd -l root."
+    compliance:
+      - cis: ["5.4.2"]
+      - nist_800_53: ["AC-6"]
+    condition: any
+    rules:
+      - 'f:$shadow_file -> r:^root:!|^root:\*|^root:!!'
+
+  - id: 200022
+    title: "Нет пользователей с пустым паролем"
+    description: "Проверяем, что нет аккаунтов с пустым паролем."
+    rationale: "Пустые пароли — критическая уязвимость (CIS 6.2.1)."
+    remediation: "Установите пароли или заблокируйте аккаунты без паролей."
+    compliance:
+      - cis: ["6.2.1"]
+      - nist_800_53: ["IA-5"]
+    condition: all
+    rules:
+      - 'f:$shadow_file -> !r:^[^:]+::'
+
+  # ==================== FILE PERMISSIONS (CIS 6.1.x) ====================
+
+  - id: 200030
+    title: "Права на /etc/passwd корректны"
+    description: "Проверяем, что /etc/passwd имеет права 644 и владелец root."
+    rationale: "Некорректные права могут позволить модификацию файла (CIS 6.1.2)."
+    remediation: "Выполните: chmod 644 /etc/passwd; chown root:root /etc/passwd."
+    compliance:
+      - cis: ["6.1.2"]
+      - nist_800_53: ["AC-3"]
+    condition: all
+    rules:
+      - 'c:stat -c "%a %U %G" /etc/passwd -> r:644 root root'
+
+  - id: 200031
+    title: "Права на /etc/shadow корректны"
+    description: "Проверяем, что /etc/shadow имеет права 640 или 000 и владелец root."
+    rationale: "Shadow файл содержит хеши паролей (CIS 6.1.3)."
+    remediation: "Выполните: chmod 640 /etc/shadow; chown root:shadow /etc/shadow."
+    compliance:
+      - cis: ["6.1.3"]
+      - nist_800_53: ["AC-3"]
+    condition: any
+    rules:
+      - 'c:stat -c "%a %U" /etc/shadow -> r:^(0|640|600) root'
+
+  - id: 200032
+    title: "Права на /etc/sudoers корректны"
+    description: "Проверяем, что /etc/sudoers имеет права 440 и владелец root."
+    rationale: "Sudoers контролирует привилегии; должен быть защищён (CIS 5.3.1)."
+    remediation: "Выполните: chmod 440 /etc/sudoers; chown root:root /etc/sudoers."
+    compliance:
+      - cis: ["5.3.1"]
+      - nist_800_53: ["AC-6"]
+    condition: all
+    rules:
+      - 'c:stat -c "%a %U %G" /etc/sudoers -> r:440 root root'
+
+  - id: 200033
+    title: "Права на sshd_config корректны"
+    description: "Проверяем, что /etc/ssh/sshd_config имеет права 600 и владелец root."
+    rationale: "Конфигурация SSH должна быть защищена от модификации (CIS 5.2.1)."
+    remediation: "Выполните: chmod 600 /etc/ssh/sshd_config; chown root:root /etc/ssh/sshd_config."
+    compliance:
+      - cis: ["5.2.1"]
+      - nist_800_53: ["CM-6"]
+    condition: all
+    rules:
+      - 'c:stat -c "%a %U %G" /etc/ssh/sshd_config -> r:600 root root'
+
+  # ==================== NETWORK SECURITY (CIS 3.x) ====================
+
+  - id: 200040
+    title: "IP forwarding отключен"
+    description: "Проверяем, что IP forwarding отключен (не роутер)."
+    rationale: "IP forwarding должен быть отключен на хостах (CIS 3.1.1)."
+    remediation: "Добавьте в /etc/sysctl.conf: net.ipv4.ip_forward = 0."
+    compliance:
+      - cis: ["3.1.1"]
+      - nist_800_53: ["SC-7"]
+    condition: all
+    rules:
+      - 'c:sysctl net.ipv4.ip_forward -> r:= 0'
+
+  - id: 200041
+    title: "ICMP redirects отключены"
+    description: "Проверяем, что ICMP redirects не принимаются."
+    rationale: "ICMP redirects могут использоваться для MITM атак (CIS 3.2.2)."
+    remediation: "Добавьте в /etc/sysctl.conf: net.ipv4.conf.all.accept_redirects = 0."
+    compliance:
+      - cis: ["3.2.2"]
+      - nist_800_53: ["SC-7"]
+    condition: all
+    rules:
+      - 'c:sysctl net.ipv4.conf.all.accept_redirects -> r:= 0'
+
+  - id: 200042
+    title: "Source routing отключен"
+    description: "Проверяем, что source routing отключен."
+    rationale: "Source routing может использоваться для обхода файрвола (CIS 3.2.1)."
+    remediation: "Добавьте в /etc/sysctl.conf: net.ipv4.conf.all.accept_source_route = 0."
+    compliance:
+      - cis: ["3.2.1"]
+      - nist_800_53: ["SC-7"]
+    condition: all
+    rules:
+      - 'c:sysctl net.ipv4.conf.all.accept_source_route -> r:= 0'
+
+  - id: 200043
+    title: "TCP SYN cookies включены"
+    description: "Проверяем, что TCP SYN cookies включены для защиты от SYN flood."
+    rationale: "SYN cookies защищают от DoS атак (CIS 3.2.8)."
+    remediation: "Добавьте в /etc/sysctl.conf: net.ipv4.tcp_syncookies = 1."
+    compliance:
+      - cis: ["3.2.8"]
+      - nist_800_53: ["SC-5"]
+    condition: all
+    rules:
+      - 'c:sysctl net.ipv4.tcp_syncookies -> r:= 1'
+
+  # ==================== LOGGING & AUDITING (CIS 4.x) ====================
+
+  - id: 200050
+    title: "Auditd установлен и запущен"
+    description: "Проверяем, что auditd установлен и работает."
+    rationale: "Auditd необходим для аудита системных событий (CIS 4.1.1)."
+    remediation: "Установите и запустите auditd: apt install auditd && systemctl enable auditd."
+    compliance:
+      - cis: ["4.1.1"]
+      - nist_800_53: ["AU-2"]
+    condition: all
+    rules:
+      - 'p:auditd'
+
+  - id: 200051
+    title: "Rsyslog установлен и запущен"
+    description: "Проверяем, что rsyslog установлен и работает."
+    rationale: "Rsyslog необходим для централизованного логирования (CIS 4.2.1)."
+    remediation: "Установите и запустите rsyslog: apt install rsyslog && systemctl enable rsyslog."
+    compliance:
+      - cis: ["4.2.1"]
+      - nist_800_53: ["AU-2"]
+    condition: all
+    rules:
+      - 'p:rsyslogd'
+
+  - id: 200052
+    title: "Логи защищены от модификации"
+    description: "Проверяем, что директория /var/log имеет корректные права."
+    rationale: "Логи должны быть защищены от несанкционированной модификации (CIS 4.2.4)."
+    remediation: "Выполните: chmod 750 /var/log."
+    compliance:
+      - cis: ["4.2.4"]
+      - nist_800_53: ["AU-9"]
+    condition: all
+    rules:
+      - 'c:stat -c "%a" /var/log -> r:^(750|700)$'
+
+  # ==================== SERVICES (CIS 2.x) ====================
+
+  - id: 200060
+    title: "Telnet сервер не установлен"
+    description: "Проверяем, что telnet сервер не установлен."
+    rationale: "Telnet передаёт данные в открытом виде (CIS 2.2.18)."
+    remediation: "Удалите telnet сервер: apt remove telnetd."
+    compliance:
+      - cis: ["2.2.18"]
+      - nist_800_53: ["CM-7"]
+    condition: all
+    rules:
+      - 'not p:telnetd'
+      - 'not p:in.telnetd'
+
+  - id: 200061
+    title: "RSH сервер не установлен"
+    description: "Проверяем, что rsh сервер не установлен."
+    rationale: "RSH небезопасен и устарел (CIS 2.2.17)."
+    remediation: "Удалите rsh сервер: apt remove rsh-server."
+    compliance:
+      - cis: ["2.2.17"]
+      - nist_800_53: ["CM-7"]
+    condition: all
+    rules:
+      - 'not p:rshd'
+      - 'not p:in.rshd'
+
+  - id: 200062
+    title: "FTP сервер не установлен (если не требуется)"
+    description: "Проверяем, что FTP сервер не установлен."
+    rationale: "FTP передаёт данные в открытом виде; используйте SFTP (CIS 2.2.9)."
+    remediation: "Удалите FTP сервер или используйте SFTP."
+    compliance:
+      - cis: ["2.2.9"]
+      - nist_800_53: ["CM-7"]
+    condition: all
+    rules:
+      - 'not p:vsftpd'
+      - 'not p:proftpd'
+
+  # ==================== CRON & AT (CIS 5.1.x) ====================
+
+  - id: 200070
+    title: "Cron ограничен для авторизованных пользователей"
+    description: "Проверяем, что /etc/cron.allow существует или /etc/cron.deny пуст."
+    rationale: "Cron должен быть доступен только авторизованным пользователям (CIS 5.1.8)."
+    remediation: "Создайте /etc/cron.allow с разрешёнными пользователями."
+    compliance:
+      - cis: ["5.1.8"]
+      - nist_800_53: ["AC-3"]
+    condition: any
+    rules:
+      - 'f:/etc/cron.allow'
+
+  - id: 200071
+    title: "Права на /etc/crontab корректны"
+    description: "Проверяем, что /etc/crontab имеет права 600 и владелец root."
+    rationale: "Crontab должен быть защищён от модификации (CIS 5.1.2)."
+    remediation: "Выполните: chmod 600 /etc/crontab; chown root:root /etc/crontab."
+    compliance:
+      - cis: ["5.1.2"]
+      - nist_800_53: ["AC-3"]
+    condition: all
+    rules:
+      - 'c:stat -c "%a %U %G" /etc/crontab -> r:600 root root'
+
+  # ==================== PAM CONFIGURATION (CIS 5.3.x) ====================
+
+  - id: 200080
+    title: "PAM: Блокировка после неудачных попыток"
+    description: "Проверяем, что PAM настроен на блокировку после неудачных попыток входа."
+    rationale: "Блокировка защищает от brute-force атак (CIS 5.3.2, NIST AC-7)."
+    remediation: "Настройте pam_faillock или pam_tally2 в /etc/pam.d/common-auth."
+    compliance:
+      - cis: ["5.3.2"]
+      - nist_800_53: ["AC-7"]
+    condition: any
+    rules:
+      - 'f:/etc/pam.d/common-auth -> r:pam_faillock|pam_tally2'
+      - 'f:/etc/pam.d/system-auth -> r:pam_faillock|pam_tally2'
+
+  - id: 200081
+    title: "PAM: Требования к сложности пароля"
+    description: "Проверяем, что PAM требует сложные пароли."
+    rationale: "Сложные пароли снижают риск подбора (CIS 5.3.1, NIST IA-5)."
+    remediation: "Настройте pam_pwquality в /etc/pam.d/common-password."
+    compliance:
+      - cis: ["5.3.1"]
+      - nist_800_53: ["IA-5"]
+    condition: any
+    rules:
+      - 'f:/etc/pam.d/common-password -> r:pam_pwquality|pam_cracklib'
+      - 'f:/etc/security/pwquality.conf -> r:minlen'
+
+  # ==================== SUDO CONFIGURATION (CIS 5.3.x) ====================
+
+  - id: 200090
+    title: "Sudo требует пароль"
+    description: "Проверяем, что sudo не настроен с NOPASSWD для всех команд."
+    rationale: "NOPASSWD снижает безопасность sudo (CIS 5.3.4)."
+    remediation: "Удалите NOPASSWD из /etc/sudoers для критичных команд."
+    compliance:
+      - cis: ["5.3.4"]
+      - nist_800_53: ["AC-6"]
+    condition: all
+    rules:
+      - 'f:$sudoers_file -> !r:ALL.*NOPASSWD.*ALL'
+
+  - id: 200091
+    title: "Sudo логирует команды"
+    description: "Проверяем, что sudo настроен на логирование."
+    rationale: "Логирование sudo необходимо для аудита (CIS 5.3.5)."
+    remediation: "Добавьте в /etc/sudoers: Defaults logfile=/var/log/sudo.log."
+    compliance:
+      - cis: ["5.3.5"]
+      - nist_800_53: ["AU-2"]
+    condition: any
+    rules:
+      - 'f:$sudoers_file -> r:Defaults.*logfile'
+      - 'f:$sudoers_file -> r:Defaults.*log_input'
+      - 'f:$sudoers_file -> r:Defaults.*log_output'
+
+  # ==================== WORLD-WRITABLE FILES ====================
+
+  - id: 200095
+    title: "Нет world-writable файлов в /etc"
+    description: "Проверяем, что в /etc нет файлов с правами записи для всех."
+    rationale: "World-writable файлы в /etc — критическая уязвимость."
+    remediation: "Найдите и исправьте: find /etc -type f -perm -002."
+    compliance:
+      - cis: ["6.1.10"]
+      - nist_800_53: ["AC-3"]
+    condition: all
+    rules:
+      - 'c:find /etc -type f -perm -002 2>/dev/null | wc -l -> r:^0$'

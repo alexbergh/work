@@ -22,21 +22,19 @@
 
  9    chain=input action=accept protocol=udp src-address-list=local_ip dst-address-list=dns_interface in-interface-list=lan+wifi packet-mark=dns2_input_mark dst-port=53 log=no log-prefix="" 
 
-10    ;;; or QOS all work traffik to mylan
+10    ;;; for QOS all work traffic to mylan
       chain=forward action=accept tcp-flags="" connection-state=new src-address-list=mylan_ip dst-address-list=mywork_ip in-interface=2-mylan out-interface=1-wan packet-mark=mywork1_dst_mark log=no log-prefix="" 
 
 11    chain=forward action=accept tcp-flags="" connection-state=established,related src-address-list=mylan_ip dst-address-list=mywork_ip in-interface=2-mylan out-interface=1-wan packet-mark=mywork2_dst_mark log=no log-prefix="" 
 
 12    chain=forward action=accept tcp-flags="" connection-state=established,related src-address-list=mywork_ip dst-address-list=mylan_ip in-interface=1-wan out-interface=2-mylan packet-mark=mywork_src_mark log=no log-prefix="" 
 
-13    ;;; messangers
-      chain=forward action=accept connection-state=new src-address-list=local_ip dst-address-list=messangers_ip out-interface=1-wan in-interface-list=lan+wifi packet-mark=messangers_traffik_dst log=no log-prefix="" 
+13    ;;; messengers
+      chain=forward action=accept connection-state=new src-address-list=local_ip dst-address-list=messengers_ip out-interface=1-wan in-interface-list=lan+wifi packet-mark=messengers_traffic_dst log=no log-prefix="" 
 
-14    chain=forward action=accept connection-state=established,related src-address-list=local_ip dst-address-list=messangers_ip out-interface=1-wan in-interface-list=lan+wifi packet-mark=messangers_traffik_dst log=no log-prefix="" 
+14    chain=forward action=accept connection-state=established,related src-address-list=local_ip dst-address-list=messengers_ip out-interface=1-wan in-interface-list=lan+wifi packet-mark=messengers_traffic_dst log=no log-prefix="" 
 
-15    chain=forward action=accept connection-state=established,related src-address-list=local_ip dst-address-list=messangers_ip out-interface=1-wan in-interface-list=lan+wifi packet-mark=messangers_traffik_dst log=no log-prefix="" 
-
-16    ;;; for QOS TCP handshake + all legal traffik to local devices
+15    ;;; for QOS TCP handshake + all legal traffic to local devices
       chain=forward action=accept tcp-flags=syn connection-state=new protocol=tcp src-address-list=local_ip out-interface=1-wan in-interface-list=lan+wifi packet-mark=tcp1_syn_dst_mark dst-port=80,443 log=no log-prefix="" 
 
 17    chain=forward action=accept tcp-flags=syn,ack connection-state=established,related protocol=tcp dst-address-list=local_ip in-interface=1-wan out-interface-list=lan+wifi packet-mark=tcp1_syn_ack_src_mark src-port=80,443 log=no log-prefix="" 
@@ -60,7 +58,7 @@
 
 26    chain=output action=accept protocol=udp src-address-list=my_statik_ip dst-address-list=ntp out-interface=1-wan packet-mark=ntp_accept src-port=123 dst-port=123 log=no log-prefix="" 
 
-27    ;;; drops traffik to not wan
+27    ;;; drop traffic to non-WAN destinations
       chain=forward action=drop src-address-list=mylan_ip in-interface=!1-wan out-interface-list=lan+wifi log=no log-prefix="" 
 
 28    chain=forward action=drop src-address-list=wifi_ip out-interface=!1-wan in-interface-list=lan+wifi log=no log-prefix="" 

@@ -40,12 +40,12 @@
 
 20   name="dst-07" parent=dst packet-mark=mywork2_dst_mark limit-at=89M queue=pcq-download priority=3 max-limit=89M burst-limit=0 burst-threshold=0 burst-time=0s bucket-size=0.1 
 
-21   name="dst-03" parent=dst packet-mark=messangers_traffik_dst limit-at=89M queue=pcq-download priority=2 max-limit=89M burst-limit=0 burst-threshold=0 burst-time=0s bucket-size=0.1 
+21   name="dst-03" parent=dst packet-mark=messengers_traffic_dst limit-at=89M queue=pcq-download priority=2 max-limit=89M burst-limit=0 burst-threshold=0 burst-time=0s bucket-size=0.1 
 
-22   name="src-03" parent=src packet-mark=messangers_traffik_src limit-at=89M queue=pcq-upload priority=2 max-limit=89M burst-limit=0 burst-threshold=0 burst-time=0s bucket-size=0.1 
+22   name="src-03" parent=src packet-mark=messengers_traffic_src limit-at=89M queue=pcq-upload priority=2 max-limit=89M burst-limit=0 burst-threshold=0 burst-time=0s bucket-size=0.1 
 
 23   name="dst-08" parent=dst packet-mark=legal_traffik_dst limit-at=89M queue=pcq-download priority=3 max-limit=89M burst-limit=0 burst-threshold=0 burst-time=0s bucket-size=0.1 
 
-24   name="src-07" parent=src packet-mark=legal_src_mark limit-at=89M queue=pcq-upload priority=3 max-limit=89M burst-limit=0 burst-threshold=0 burst-time=0s bucket-size=0.1 
+24   name="src-09" parent=src packet-mark=tcp4_dst_mark limit-at=89M queue=pcq-upload priority=6 max-limit=89M burst-limit=0 burst-threshold=0 burst-time=0s bucket-size=0.1 
 
 25   name="src-05" parent=src packet-mark=dns2_input_mark limit-at=89M queue=pcq-upload priority=3 max-limit=89M burst-limit=0 burst-threshold=0 burst-time=0s bucket-size=0.1
