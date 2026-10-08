@@ -1,9 +1,5 @@
 # Kubernetes Security Configuration
 
-## Статус конфигов
-
-Для Kubernetes всё готово. Полный набор конфигурационных файлов для CIS Kubernetes Benchmark v1.12.
-
 ## Готовые конфиги
 
 | Файл | Назначение | Статус |
@@ -157,7 +153,7 @@ kube-bench run --config kube-bench-custom.yaml --json > compliance-report.json
 - Оставлен только для кластеров ≤ 1.24
 - Для современных кластеров используйте `pod-security-admission.yaml` (соответствует CIS K8s v1.12)
 
-### 🔧 Webhook Setup Required
+### Webhook Setup Required
 - В `validating-webhook.yaml` указан placeholder `capabilities-validator:latest`
 - Нужно собрать образ из Python-кода в ConfigMap
 - `caBundle` содержит placeholder - сгенерируйте реальные сертификаты
