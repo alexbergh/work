@@ -61,17 +61,19 @@ data:
     SYS_ADMIN         - Широкие административные права (ОПАСНО!)
     SYS_TIME          - Изменение системного времени
     
-  # Матрица рисков Capabilities
+  # Матрица рисков Capabilities (CIS K8s v1.12 5.2.8/5.2.9)
   risk-matrix.yaml: |
     high-risk:
       - SYS_ADMIN      # Никогда не использовать
       - SYS_PTRACE     # Отладка других процессов
       - SYS_MODULE     # Загрузка kernel модулей
       - DAC_READ_SEARCH # Чтение любых файлов
+      - SYS_RAWIO      # Прямой доступ к блочным устройствам
+      - NET_RAW        # Raw/packet сокеты (CIS K8s v1.12 5.2.8)
+      - DAC_OVERRIDE   # Обход проверок прав доступа
     
     medium-risk:
       - NET_ADMIN      # Сетевая конфигурация
-      - NET_RAW        # Raw сокеты
       - SYS_TIME       # Изменение времени
     
     low-risk:

@@ -2,7 +2,7 @@
 
 ## Статус конфигов
 
-Для Kubernetes всё готово. Полный набор конфигурационных файлов для CIS Kubernetes Benchmark v1.10.
+Для Kubernetes всё готово. Полный набор конфигурационных файлов для CIS Kubernetes Benchmark v1.12.
 
 ## Готовые конфиги
 
@@ -17,16 +17,24 @@
 | `opa-gatekeeper-pod-security.yaml` | OPA политики для pod security | + |
 | `opa-gatekeeper-networkpolicy.yaml` | OPA политики для NetworkPolicy | + |
 
-## Покрытие CIS Kubernetes v1.10
+## Покрытие CIS Kubernetes v1.12
 
-### Контроль 5.2 - Pod Security Policies
+### Контроль 5.2 - Pod Security
 - **5.2.2** — Запрет privileged контейнеров
-- **5.2.4** — `allowPrivilegeEscalation: false`
-- **5.2.5/5.2.6** — `runAsNonRoot`, явный UID
-- **5.2.7/5.2.8** — `drop: ALL` capabilities
+- **5.2.3–5.2.5** — Запрет `hostPID`, `hostIPC`, `hostNetwork`
+- **5.2.6** — `allowPrivilegeEscalation: false`
+- **5.2.7** — `runAsNonRoot: true`
+- **5.2.8** — Запрет `NET_RAW`
+- **5.2.9** — `drop: ALL` capabilities
+- **5.2.10** — Ограничение Windows HostProcess
+- **5.2.11** — Запрет `hostPath` volumes
+- **5.2.12** — Запрет `hostPort`
 
 ### Контроль 5.3 - Network Policies
 - **5.3.2** — NetworkPolicy enforcement
+
+### Контроль 5.4 - Secrets
+- **5.4.1** — Монтировать секреты как файлы, а не `env`
 
 ### Контроль 5.7 - Runtime Security
 - **5.7.2** — Seccomp `RuntimeDefault`
@@ -144,9 +152,10 @@ kube-bench run --config kube-bench-custom.yaml --json > compliance-report.json
 
 ## Замечания и TODO
 
-### PSP Deprecated
-- `pod-security-policy.yaml` использует `policy/v1beta1`, удалённый в K8s 1.25+
-- Используйте `pod-security-admission.yaml` для новых кластеров
+### PodSecurityPolicy — legacy
+- `pod-security-policy.yaml` использует `policy/v1beta1`, удалённый в Kubernetes 1.25+
+- Оставлен только для кластеров ≤ 1.24
+- Для современных кластеров используйте `pod-security-admission.yaml` (соответствует CIS K8s v1.12)
 
 ### 🔧 Webhook Setup Required
 - В `validating-webhook.yaml` указан placeholder `capabilities-validator:latest`
@@ -155,8 +164,8 @@ kube-bench run --config kube-bench-custom.yaml --json > compliance-report.json
 
 ### Migration Path
 1. **Legacy (≤1.24)**: Используйте `pod-security-policy.yaml`
-2. **Modern (≥1.25)**: Используйте `pod-security-admission.yaml`
-3. **Advanced**: OPA Gatekeeper + Admission Webhooks
+2. **Modern (≥1.25)**: Используйте `pod-security-admission.yaml` (CIS K8s v1.12)
+3. **Advanced**: OPA Gatekeeper / Kyverno / ValidatingAdmissionPolicy + Admission Webhooks
 
 ## Мониторинг и аудит
 
@@ -173,7 +182,7 @@ kubectl get networkpolicy -A -o wide
 
 ## Дополнительные ресурсы
 
-- [CIS Kubernetes Benchmark v1.10](https://www.scribd.com/document/869161543/CIS-Kubernetes-Benchmark-v1-10-PDF)
+- [CIS Kubernetes Benchmark v1.12](https://www.cisecurity.org/benchmark/kubernetes)
 - [Pod Security Standards Documentation](https://kubernetes.io/docs/concepts/security/pod-security-standards/)
 - [OPA Gatekeeper](https://open-policy-agent.github.io/gatekeeper/)
 

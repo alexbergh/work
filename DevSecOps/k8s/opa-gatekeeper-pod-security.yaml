@@ -1,4 +1,4 @@
-apiVersion: templates.gatekeeper.sh/v1beta1
+apiVersion: templates.gatekeeper.sh/v1
 kind: ConstraintTemplate
 metadata:
   name: k8spodsecuritycis
@@ -12,37 +12,88 @@ spec:
       rego: |
         package k8spodsecuritycis
 
+        # Все типы контейнеров, включая init и ephemeral (CIS K8s v1.12)
+        all_containers[c] {
+          c := input.review.object.spec.containers[_]
+        }
+        all_containers[c] {
+          c := input.review.object.spec.initContainers[_]
+        }
+        all_containers[c] {
+          c := input.review.object.spec.ephemeralContainers[_]
+        }
+
         violation[{"msg": msg}] {
-          container := input.review.object.spec.containers[_]
+          input.review.object.spec.hostPID
+          msg := "hostPID запрещён (CIS K8s v1.12 5.2.3)"
+        }
+
+        violation[{"msg": msg}] {
+          input.review.object.spec.hostIPC
+          msg := "hostIPC запрещён (CIS K8s v1.12 5.2.4)"
+        }
+
+        violation[{"msg": msg}] {
+          input.review.object.spec.hostNetwork
+          msg := "hostNetwork запрещён (CIS K8s v1.12 5.2.5)"
+        }
+
+        violation[{"msg": msg}] {
+          container := all_containers[_]
           container.securityContext.privileged
-          msg := sprintf("Privileged containers не разрешены (CIS 5.2.1): %v", [container.name])
+          msg := sprintf("Privileged containers не разрешены (CIS K8s v1.12 5.2.2): %v", [container.name])
         }
 
         violation[{"msg": msg}] {
-          container := input.review.object.spec.containers[_]
-          not container.securityContext.runAsNonRoot
-          msg := sprintf("Container должен запускаться как non-root (CIS 5.2.6): %v", [container.name])
-        }
-
-        violation[{"msg": msg}] {
-          container := input.review.object.spec.containers[_]
+          container := all_containers[_]
           not container.securityContext.allowPrivilegeEscalation == false
-          msg := sprintf("allowPrivilegeEscalation должен быть false (CIS 5.2.5): %v", [container.name])
+          msg := sprintf("allowPrivilegeEscalation должен быть false (CIS K8s v1.12 5.2.6): %v", [container.name])
         }
 
         violation[{"msg": msg}] {
-          container := input.review.object.spec.containers[_]
-          has_dangerous_caps(container)
-          msg := sprintf("Опасные capabilities обнаружены (CIS 5.2.7): %v", [container.name])
+          container := all_containers[_]
+          not input.review.object.spec.securityContext.runAsNonRoot
+          not container.securityContext.runAsNonRoot
+          msg := sprintf("Контейнер/Pod должен запускаться как non-root (CIS K8s v1.12 5.2.7): %v", [container.name])
         }
 
-        has_dangerous_caps(container) {
-          dangerous := ["SYS_ADMIN", "NET_ADMIN", "SYS_MODULE", "SYS_RAWIO"]
+        violation[{"msg": msg}] {
+          container := all_containers[_]
+          not drop_all_capabilities(container)
+          msg := sprintf("Контейнер должен сбрасывать ВСЕ capabilities (CIS K8s v1.12 5.2.9): %v", [container.name])
+        }
+
+        drop_all_capabilities(container) {
+          container.securityContext.capabilities.drop[_] == "ALL"
+        }
+
+        violation[{"msg": msg}] {
+          container := all_containers[_]
           cap := container.securityContext.capabilities.add[_]
+          dangerous := ["SYS_ADMIN", "SYS_MODULE", "SYS_PTRACE", "SYS_RAWIO", "NET_ADMIN", "NET_RAW", "DAC_OVERRIDE"]
           cap == dangerous[_]
+          msg := sprintf("Опасная capability запрещена (CIS K8s v1.12 5.2.8/5.2.9): %v", [container.name])
+        }
+
+        violation[{"msg": msg}] {
+          volume := input.review.object.spec.volumes[_]
+          volume.hostPath
+          not exempt_system_namespace
+          msg := "hostPath volumes запрещены (CIS K8s v1.12 5.2.11)"
+        }
+
+        exempt_system_namespace {
+          ns := input.review.namespace
+          ns == "kube-system"
+        }
+
+        violation[{"msg": msg}] {
+          container := all_containers[_]
+          container.ports[_].hostPort
+          msg := sprintf("hostPort запрещён (CIS K8s v1.12 5.2.12): %v", [container.name])
         }
 ---
-apiVersion: constraints.gatekeeper.sh/v1beta1
+apiVersion: constraints.gatekeeper.sh/v1
 kind: K8sPodSecurityCIS
 metadata:
   name: pod-security-cis

@@ -141,6 +141,6 @@ groups:
   id: '5'
   text: ETCD
 id: custom
-text: CIS Kubernetes Benchmark v1.10 - Custom ALT SP
+text: CIS Kubernetes Benchmark v1.12 - Custom ALT SP
 type: master
-version: cis-1.10
+version: cis-1.12

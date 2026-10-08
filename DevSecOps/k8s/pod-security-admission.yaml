@@ -1,4 +1,5 @@
 # Pod Security Admission Configuration для Kubernetes 1.25+
+# Соответствует CIS Kubernetes Benchmark v1.12 (контроль 5.2)
 # Заменяет устаревший PodSecurityPolicy
 ---
 # Namespace с enforced restricted политикой (production)
